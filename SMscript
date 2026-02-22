@@ -106,6 +106,7 @@ local processedObjects = {}
 local lastWarningTime = 0
 
 --------- === МОНСТРЫ (ОПТИМИЗИРОВАННАЯ СИСТЕМА) === ---------
+-- Таблицы с названиями монстров и объектов (РАЗДЕЛЬНО)
 local monsterDefinitions = {
 	-- Раш-Друн (главный враг)
 	{
@@ -114,20 +115,32 @@ local monsterDefinitions = {
 		color = Color3.fromRGB(255, 0, 0),
 		dangerous = true
 	},
-	-- Отдельные части Раш-Друна (тоже опасны)
+	
+	-- Стена плоти (реальный босс)
 	{
-		keywords = {"раш", "rush"},
-		displayName = "⚡ РАШ",
-		color = Color3.fromRGB(255, 50, 50),
+		keywords = {"стена", "плоть", "wall", "flesh"},
+		displayName = "🧱 СТЕНА ПЛОТИ",
+		color = Color3.fromRGB(150, 0, 0),
 		dangerous = true
 	},
+	
+	-- Tancpol roomWood (пока неизвестно, добавим позже когда узнаем название)
+	-- {
+	-- 	keywords = {"tancpol", "roomwood", "wood"},
+	-- 	displayName = "🪵 TANCPOL",
+	-- 	color = Color3.fromRGB(139, 69, 19),
+	-- 	dangerous = false
+	-- },
+	
+	-- Doors (просто переход)
 	{
-		keywords = {"друн", "drown"},
-		displayName = "💧 ДРУН",
-		color = Color3.fromRGB(255, 50, 50),
-		dangerous = true
+		keywords = {"doors", "door", "дверь", "двери"},
+		displayName = "🚪 DOORS",
+		color = Color3.fromRGB(100, 200, 255),
+		dangerous = false
 	},
-	-- Остальные монстры (не опасны, просто информация)
+	
+	-- Остальные монстры
 	{
 		keywords = {"фог", "fog", "туман"},
 		displayName = "👻 ФОГ",
@@ -144,12 +157,6 @@ local monsterDefinitions = {
 		keywords = {"заяц", "bunny"},
 		displayName = "🐰 ЗАЯЦ",
 		color = Color3.fromRGB(255, 200, 255),
-		dangerous = false
-	},
-	{
-		keywords = {"стена", "плоть", "wall"},
-		displayName = "🧱 СТЕНА ПЛОТИ",
-		color = Color3.fromRGB(150, 0, 0),
 		dangerous = false
 	},
 	{
