@@ -107,30 +107,40 @@ local lastWarningTime = 0
 
 --------- === МОНСТРЫ (ОПТИМИЗИРОВАННАЯ СИСТЕМА) === ---------
 -- Таблицы с названиями монстров и объектов (РАЗДЕЛЬНО)
+-- Таблицы с названиями монстров и объектов (ПОЛНАЯ ВЕРСИЯ)
 local monsterDefinitions = {
-	-- Раш-Друн (главный враг)
+	-- Раш-Друн (главный враг) - также срабатывает на vent и tancpol
 	{
-		keywords = {"раш", "друн", "rush", "drown"},
+		keywords = {"раш", "друн", "rush", "drown", "vent", "tancpol"},
 		displayName = "⚠️ РАШ-ДРУН ⚠️",
 		color = Color3.fromRGB(255, 0, 0),
 		dangerous = true
 	},
 	
-	-- Стена плоти (реальный босс)
+	-- Стена плоти (реальный босс) - также срабатывает на RoomWood
 	{
-		keywords = {"стена", "плоть", "wall", "flesh"},
+		keywords = {"стена", "плоть", "wall", "flesh", "roomwood", "wood"},
 		displayName = "🧱 СТЕНА ПЛОТИ",
 		color = Color3.fromRGB(150, 0, 0),
 		dangerous = true
 	},
 	
-	-- Tancpol roomWood (пока неизвестно, добавим позже когда узнаем название)
-	-- {
-	-- 	keywords = {"tancpol", "roomwood", "wood"},
-	-- 	displayName = "🪵 TANCPOL",
-	-- 	color = Color3.fromRGB(139, 69, 19),
-	-- 	dangerous = false
-	-- },
+	-- Фог - срабатывает на TrainFloor (появляется если бежать назад)
+	{
+		keywords = {"фог", "fog", "туман", "trainfloor", "train"},
+		displayName = "👻 ФОГ",
+		color = Color3.fromRGB(150, 150, 150),
+		dangerous = false,
+		note = "Появляется если бежать в обратную сторону"
+	},
+	
+	-- Артур (Artur)
+	{
+		keywords = {"артур", "arthur", "artur"},
+		displayName = "👑 АРТУР",
+		color = Color3.fromRGB(255, 255, 0),
+		dangerous = false
+	},
 	
 	-- Doors (просто переход)
 	{
@@ -141,12 +151,6 @@ local monsterDefinitions = {
 	},
 	
 	-- Остальные монстры
-	{
-		keywords = {"фог", "fog", "туман"},
-		displayName = "👻 ФОГ",
-		color = Color3.fromRGB(150, 150, 150),
-		dangerous = false
-	},
 	{
 		keywords = {"голодный", "hungry"},
 		displayName = "👹 ГОЛОДНЫЙ",
@@ -175,12 +179,6 @@ local monsterDefinitions = {
 		keywords = {"чигур", "chig"},
 		displayName = "🔪 ЧИГУР",
 		color = Color3.fromRGB(0, 255, 0),
-		dangerous = false
-	},
-	{
-		keywords = {"артур", "arthur"},
-		displayName = "👑 АРТУР",
-		color = Color3.fromRGB(255, 255, 0),
 		dangerous = false
 	}
 }
