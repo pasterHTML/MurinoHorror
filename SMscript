@@ -88,7 +88,7 @@ local espEnabled = {
 }
 
 local espObjects = {}
-local tracerLines = {}
+local processedObjects = {} -- Для отслеживания уже обработанных объектов
 
 --------- Таблицы с названиями
 local itemNames = {
@@ -105,6 +105,7 @@ local coinNames = {
 
 --------- Функция создания ESP
 local function createESP(obj, color, customText)
+	if processedObjects[obj] then return end -- Проверяем, не обрабатывали ли уже
 	if obj:FindFirstChild("ESP_Billboard") then return end
 
 	local rootPart = obj
@@ -123,6 +124,8 @@ local function createESP(obj, color, customText)
 	billboard.StudsOffset = Vector3.new(0, 2, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Enabled = true
+	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	billboard.ResetOnSpawn = false
 
 	-- Фон
 	local frame = Instance.new("Frame")
@@ -149,31 +152,35 @@ local function createESP(obj, color, customText)
 	nameLabel.Position = UDim2.new(0, 4, 0, 2)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = obj.Name
-	nameLabel.TextColor3 = theme.Text
+	nameLabel.TextColor3 = color or theme.Text
 	nameLabel.TextSize = 14
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.TextYAlignment = Enum.TextYAlignment.Center
 
 	-- Текст действия и дистанция
 	local infoLabel = Instance.new("TextLabel")
 	infoLabel.Parent = frame
 	infoLabel.Size = UDim2.new(1, -8, 0.5, 0)
-	infoLabel.Position = UDim2.new(0, 4, 0.5, -2)
+	infoLabel.Position = UDim2.new(0, 4, 0.5, 0)
 	infoLabel.BackgroundTransparency = 1
-	infoLabel.Text = (customText or "") .. " | " .. "0m"
+	infoLabel.Text = (customText or "") .. " | 0m"
 	infoLabel.TextColor3 = theme.TextDim
 	infoLabel.TextSize = 12
 	infoLabel.Font = Enum.Font.Gotham
 	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+	infoLabel.TextYAlignment = Enum.TextYAlignment.Center
 
 	-- Линия-трейсер
 	local tracer = Instance.new("Frame")
 	tracer.Name = "Tracer_" .. obj.Name
 	tracer.Parent = screen
-	tracer.BackgroundColor3 = theme.TextDim
+	tracer.BackgroundColor3 = color or theme.TextDim
 	tracer.BackgroundTransparency = 0.5
 	tracer.BorderSizePixel = 0
 	tracer.Size = UDim2.new(0, 1, 0, 1)
+	tracer.Visible = false
+	tracer.ZIndex = 5
 
 	table.insert(espObjects, {
 		billboard = billboard, 
@@ -181,8 +188,11 @@ local function createESP(obj, color, customText)
 		obj = obj, 
 		rootPart = rootPart,
 		tracer = tracer,
-		customText = customText
+		customText = customText,
+		color = color or theme.TextDim
 	})
+	
+	processedObjects[obj] = true -- Отмечаем объект как обработанный
 end
 
 --------- Функция обновления
@@ -191,13 +201,16 @@ local function updateESP()
 	if not character then return end
 
 	local camera = workspace.CurrentCamera
+	if not camera then return end
+	
 	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
-	if not rootPart or not camera then return end
+	if not rootPart then return end
 
 	local screenSize = camera.ViewportSize
+	local centerBottom = Vector2.new(screenSize.X / 2, screenSize.Y)
 
 	for _, esp in pairs(espObjects) do
-		if esp.billboard and esp.billboard.Parent and esp.rootPart then
+		if esp.billboard and esp.billboard.Parent and esp.rootPart and esp.rootPart.Parent then
 			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
 			esp.infoLabel.Text = (esp.customText or "") .. " | " .. math.floor(distance) .. "m"
 
@@ -208,28 +221,42 @@ local function updateESP()
 				esp.billboard.Enabled = true
 
 				if esp.tracer then
-					esp.tracer.Visible = true
-
 					local objPos = camera:WorldToViewportPoint(esp.rootPart.Position)
 
 					if objPos.Z > 0 then
-						local startPos = Vector2.new(screenSize.X / 2, screenSize.Y)
-						local endPos = Vector2.new(objPos.X, objPos.Y)
-
-						local direction = endPos - startPos
+						local screenPos = Vector2.new(objPos.X, objPos.Y)
+						local direction = screenPos - centerBottom
 						local length = direction.Magnitude
-						local angle = math.atan2(direction.Y, direction.X)
-
-						esp.tracer.Position = UDim2.new(0, startPos.X, 0, startPos.Y - 1)
-						esp.tracer.Size = UDim2.new(0, length, 0, 1)
-						esp.tracer.Rotation = math.deg(angle)
-						esp.tracer.BackgroundTransparency = 0.5 + (distance / 600) * 0.3
-						esp.tracer.Visible = true
+						
+						if length > 5 then
+							local angle = math.deg(math.atan2(direction.Y, direction.X))
+							
+							esp.tracer.Size = UDim2.new(0, length, 0, 2)
+							esp.tracer.Position = UDim2.new(0, centerBottom.X, 0, centerBottom.Y - 1)
+							esp.tracer.Rotation = angle
+							esp.tracer.BackgroundColor3 = esp.color
+							esp.tracer.BackgroundTransparency = 0.3 + (distance / 600) * 0.5
+							esp.tracer.Visible = true
+						else
+							esp.tracer.Visible = false
+						end
 					else
 						esp.tracer.Visible = false
 					end
 				end
 			end
+		else
+			-- Если объект или его корневая часть исчезли
+			if esp.tracer then esp.tracer:Destroy() end
+			if esp.billboard then esp.billboard:Destroy() end
+		end
+	end
+	
+	-- Очищаем удаленные объекты
+	for i = #espObjects, 1, -1 do
+		if not espObjects[i].billboard or not espObjects[i].billboard.Parent then
+			if espObjects[i].tracer then espObjects[i].tracer:Destroy() end
+			table.remove(espObjects, i)
 		end
 	end
 end
@@ -241,19 +268,20 @@ local function clearESP()
 		if esp.tracer then esp.tracer:Destroy() end
 	end
 	espObjects = {}
+	processedObjects = {}
 end
 
---------- Функция поиска
+--------- Функция поиска объектов
 local function findObjects(names, color, defaultText, isInteract)
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
-		if not obj:IsA("Player") and obj.Parent ~= player.Character then
+		if not obj:IsA("Player") and obj.Parent ~= player.Character and not processedObjects[obj] then
 
 			if isInteract then
 				-- Для интерактива ищем промпты
 				if obj:IsA("ProximityPrompt") then
 					local parent = obj.Parent
-					if parent and parent ~= player.Character then
+					if parent and parent ~= player.Character and not processedObjects[parent] then
 						local actionText = "[E] " .. (obj.ActionText or "Use")
 						if parent:IsA("Model") or parent:IsA("BasePart") or parent:IsA("MeshPart") then
 							createESP(parent, theme.Text, actionText)
@@ -262,7 +290,7 @@ local function findObjects(names, color, defaultText, isInteract)
 					end
 				else
 					for _, child in pairs(obj:GetDescendants()) do
-						if child:IsA("ProximityPrompt") and obj ~= player.Character then
+						if child:IsA("ProximityPrompt") and obj ~= player.Character and not processedObjects[obj] then
 							local actionText = "[E] " .. (child.ActionText or "Use")
 							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
 								createESP(obj, theme.Text, actionText)
@@ -304,7 +332,7 @@ local function toggleESP(type)
 			ItemsSlider.Text = "ON"
 			ItemsSlider.BackgroundColor3 = theme.Accent
 			ItemsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-			local found = findObjects(itemNames, nil, "Item", false)
+			local found = findObjects(itemNames, Color3.fromRGB(255, 200, 100), "Item", false)
 			print("Предметов найдено:", found)
 		end
 
@@ -319,7 +347,7 @@ local function toggleESP(type)
 			CoinsSlider.Text = "ON"
 			CoinsSlider.BackgroundColor3 = theme.Accent
 			CoinsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-			local found = findObjects(coinNames, nil, "Coin", false)
+			local found = findObjects(coinNames, Color3.fromRGB(255, 255, 100), "Coin", false)
 			print("Монет найдено:", found)
 		end
 
@@ -342,6 +370,51 @@ local function toggleESP(type)
 	if not espEnabled.Items and not espEnabled.Coins and not espEnabled.Interact then
 		clearESP()
 	end
+end
+
+--------- Функция для поиска новых объектов (постоянный мониторинг)
+local function setupObjectMonitor()
+	workspace.DescendantAdded:Connect(function(obj)
+		wait(0.1) -- Небольшая задержка, чтобы объект полностью загрузился
+		if not processedObjects[obj] and obj.Parent ~= player.Character then
+			if espEnabled.Items then
+				local objName = obj.Name:lower()
+				for _, name in pairs(itemNames) do
+					if objName:find(name:lower(), 1, true) then
+						if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+							createESP(obj, Color3.fromRGB(255, 200, 100), "Item")
+							break
+						end
+					end
+				end
+			end
+			
+			if espEnabled.Coins and not processedObjects[obj] then
+				local objName = obj.Name:lower()
+				for _, name in pairs(coinNames) do
+					if objName:find(name:lower(), 1, true) then
+						if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+							createESP(obj, Color3.fromRGB(255, 255, 100), "Coin")
+							break
+						end
+					end
+				end
+			end
+			
+			if espEnabled.Interact and not processedObjects[obj] then
+				-- Проверяем наличие промптов в новом объекте
+				for _, child in pairs(obj:GetDescendants()) do
+					if child:IsA("ProximityPrompt") then
+						local actionText = "[E] " .. (child.ActionText or "Use")
+						if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
+							createESP(obj, theme.Text, actionText)
+						end
+						break
+					end
+				end
+			end
+		end
+	end)
 end
 
 --------- Функция для перетаскивания
@@ -640,6 +713,26 @@ InteractSlider.MouseButton1Click:Connect(function()
 	toggleESP("Interact")
 end)
 
+-- Запускаем мониторинг новых объектов
+setupObjectMonitor()
+
+-- Обновление каждые 2 секунды для поиска новых объектов
+spawn(function()
+	while wait(2) do
+		if espEnabled.Items or espEnabled.Coins or espEnabled.Interact then
+			if espEnabled.Items then
+				findObjects(itemNames, Color3.fromRGB(255, 200, 100), "Item", false)
+			end
+			if espEnabled.Coins then
+				findObjects(coinNames, Color3.fromRGB(255, 255, 100), "Coin", false)
+			end
+			if espEnabled.Interact then
+				findObjects({}, nil, "", true)
+			end
+		end
+	end
+end)
+
 game:GetService("RunService").RenderStepped:Connect(updateESP)
 
 spawn(function()
@@ -655,3 +748,5 @@ end)
 print("Меню загружено! Можно перетаскивать:")
 print("- Кнопку MENU (тяни за верхнюю полоску)")
 print("- Главное меню (тяни за верхнюю полоску)")
+print("✅ ESP теперь отслеживает новые объекты!")
+print("✅ Трейсеры починены!")
