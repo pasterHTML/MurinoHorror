@@ -1,0 +1,657 @@
+local screen = Instance.new("ScreenGui")
+screen.Name = "ModernCheat"
+screen.Parent = game.Players.LocalPlayer.PlayerGui
+screen.ResetOnSpawn = false
+screen.IgnoreGuiInset = true
+screen.DisplayOrder = 999
+
+-- === СОВРЕМЕННЫЙ СТИЛЬ ЧИТОВ ===
+local theme = {
+	Background = Color3.fromRGB(25, 25, 30),      -- Основной фон
+	Background2 = Color3.fromRGB(35, 35, 40),     -- Для кнопок
+	Background3 = Color3.fromRGB(45, 45, 50),     -- Для активных кнопок
+	Text = Color3.fromRGB(220, 220, 220),         -- Основной текст
+	TextDim = Color3.fromRGB(150, 150, 150),      -- Неактивный текст
+	Border = Color3.fromRGB(55, 55, 60),          -- Границы
+	Accent = Color3.fromRGB(70, 130, 255),        -- Синий акцент для ON
+}
+
+local frame1Lobby = Instance.new("TextButton")
+local frame2menu = Instance.new("Frame")
+local dragFrame = Instance.new("Frame")  -- Для перетаскивания меню
+local dragButton = Instance.new("Frame") -- Для перетаскивания кнопки
+
+-- Корнеры
+local UICorner1 = Instance.new("UICorner")
+local UICorner2 = Instance.new("UICorner")
+local UICorner3 = Instance.new("UICorner")
+local UICorner4 = Instance.new("UICorner")
+local UICorner5 = Instance.new("UICorner")
+local UICorner6 = Instance.new("UICorner")
+local UICorner7 = Instance.new("UICorner")
+local UICorner8 = Instance.new("UICorner")
+local UICorner9 = Instance.new("UICorner")
+local UICorner10 = Instance.new("UICorner")
+
+-- Обводки
+local UIStroke1 = Instance.new("UIStroke")
+local UIStroke2 = Instance.new("UIStroke")
+local UIStroke3 = Instance.new("UIStroke")
+local UIStroke4 = Instance.new("UIStroke")
+local UIStroke5 = Instance.new("UIStroke")
+local UIStroke6 = Instance.new("UIStroke")
+
+local Exit = Instance.new("TextButton")
+local EpSlider = Instance.new("TextButton")
+local ItemsSlider = Instance.new("TextButton")
+local CoinsSlider = Instance.new("TextButton")
+local InteractSlider = Instance.new("TextButton")
+
+local textSpeed = Instance.new("TextLabel")
+local textNightVision = Instance.new("TextLabel")
+local textItems = Instance.new("TextLabel")
+local textCoins = Instance.new("TextLabel")
+local textInteract = Instance.new("TextLabel")
+
+local TextBox = Instance.new("TextBox")
+
+local player = game.Players.LocalPlayer
+local light = Instance.new("PointLight")
+light.Enabled = false
+light.Parent = player.Character:WaitForChild("HumanoidRootPart")
+light.Brightness = 0.5
+light.Range = 120
+light.Color = Color3.new(1, 1, 1)
+
+--------- Переменные для перетаскивания
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local draggingButton = false
+local dragButtonInput
+local dragButtonStart
+local startButtonPos
+
+--------- base
+
+frame1Lobby.Parent = screen
+frame2menu.Parent = screen
+frame2menu.Visible = false
+
+--------- ESP Variables
+local espEnabled = {
+	Items = false,
+	Coins = false,
+	Interact = false
+}
+
+local espObjects = {}
+local tracerLines = {}
+
+--------- Таблицы с названиями
+local itemNames = {
+	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
+	"Switch", "Lever", "Artifact", "Scroll", "Potion", "Health", 
+	"Medkit", "Bandage", "Ammo", "Weapon", "Gun", "Sword", "Axe",
+	"Tool", "Hammer", "Part"
+}
+
+local coinNames = {
+	"Coin", "Coins", "Money", "Cash", "Gold", "Gem", "Gems",
+	"Crystal", "Crystals", "Token", "Tokens", "Dollar", "Ruby", "Diamond"
+}
+
+--------- Функция создания ESP
+local function createESP(obj, color, customText)
+	if obj:FindFirstChild("ESP_Billboard") then return end
+
+	local rootPart = obj
+	if obj:IsA("Model") then
+		rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head")
+	end
+
+	if not rootPart then return end
+
+	-- Billboard для текста
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESP_Billboard"
+	billboard.Parent = rootPart
+	billboard.Adornee = rootPart
+	billboard.Size = UDim2.new(0, 160, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Enabled = true
+
+	-- Фон
+	local frame = Instance.new("Frame")
+	frame.Parent = billboard
+	frame.Size = UDim2.new(1, 0, 1, 0)
+	frame.BackgroundColor3 = theme.Background2
+	frame.BackgroundTransparency = 0.1
+	frame.BorderSizePixel = 0
+
+	local frameCorner = Instance.new("UICorner")
+	frameCorner.CornerRadius = UDim.new(0, 3)
+	frameCorner.Parent = frame
+
+	-- Обводка
+	local frameStroke = Instance.new("UIStroke")
+	frameStroke.Parent = frame
+	frameStroke.Thickness = 1
+	frameStroke.Color = theme.Border
+
+	-- Название
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Parent = frame
+	nameLabel.Size = UDim2.new(1, -8, 0.5, 0)
+	nameLabel.Position = UDim2.new(0, 4, 0, 2)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = obj.Name
+	nameLabel.TextColor3 = theme.Text
+	nameLabel.TextSize = 14
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	-- Текст действия и дистанция
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Parent = frame
+	infoLabel.Size = UDim2.new(1, -8, 0.5, 0)
+	infoLabel.Position = UDim2.new(0, 4, 0.5, -2)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Text = (customText or "") .. " | " .. "0m"
+	infoLabel.TextColor3 = theme.TextDim
+	infoLabel.TextSize = 12
+	infoLabel.Font = Enum.Font.Gotham
+	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	-- Линия-трейсер
+	local tracer = Instance.new("Frame")
+	tracer.Name = "Tracer_" .. obj.Name
+	tracer.Parent = screen
+	tracer.BackgroundColor3 = theme.TextDim
+	tracer.BackgroundTransparency = 0.5
+	tracer.BorderSizePixel = 0
+	tracer.Size = UDim2.new(0, 1, 0, 1)
+
+	table.insert(espObjects, {
+		billboard = billboard, 
+		infoLabel = infoLabel, 
+		obj = obj, 
+		rootPart = rootPart,
+		tracer = tracer,
+		customText = customText
+	})
+end
+
+--------- Функция обновления
+local function updateESP()
+	local character = player.Character
+	if not character then return end
+
+	local camera = workspace.CurrentCamera
+	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
+	if not rootPart or not camera then return end
+
+	local screenSize = camera.ViewportSize
+
+	for _, esp in pairs(espObjects) do
+		if esp.billboard and esp.billboard.Parent and esp.rootPart then
+			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
+			esp.infoLabel.Text = (esp.customText or "") .. " | " .. math.floor(distance) .. "m"
+
+			if distance > 600 then
+				esp.billboard.Enabled = false
+				if esp.tracer then esp.tracer.Visible = false end
+			else
+				esp.billboard.Enabled = true
+
+				if esp.tracer then
+					esp.tracer.Visible = true
+
+					local objPos = camera:WorldToViewportPoint(esp.rootPart.Position)
+
+					if objPos.Z > 0 then
+						local startPos = Vector2.new(screenSize.X / 2, screenSize.Y)
+						local endPos = Vector2.new(objPos.X, objPos.Y)
+
+						local direction = endPos - startPos
+						local length = direction.Magnitude
+						local angle = math.atan2(direction.Y, direction.X)
+
+						esp.tracer.Position = UDim2.new(0, startPos.X, 0, startPos.Y - 1)
+						esp.tracer.Size = UDim2.new(0, length, 0, 1)
+						esp.tracer.Rotation = math.deg(angle)
+						esp.tracer.BackgroundTransparency = 0.5 + (distance / 600) * 0.3
+						esp.tracer.Visible = true
+					else
+						esp.tracer.Visible = false
+					end
+				end
+			end
+		end
+	end
+end
+
+--------- Функция очистки
+local function clearESP()
+	for _, esp in pairs(espObjects) do
+		if esp.billboard then esp.billboard:Destroy() end
+		if esp.tracer then esp.tracer:Destroy() end
+	end
+	espObjects = {}
+end
+
+--------- Функция поиска
+local function findObjects(names, color, defaultText, isInteract)
+	local found = 0
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if not obj:IsA("Player") and obj.Parent ~= player.Character then
+
+			if isInteract then
+				-- Для интерактива ищем промпты
+				if obj:IsA("ProximityPrompt") then
+					local parent = obj.Parent
+					if parent and parent ~= player.Character then
+						local actionText = "[E] " .. (obj.ActionText or "Use")
+						if parent:IsA("Model") or parent:IsA("BasePart") or parent:IsA("MeshPart") then
+							createESP(parent, theme.Text, actionText)
+							found = found + 1
+						end
+					end
+				else
+					for _, child in pairs(obj:GetDescendants()) do
+						if child:IsA("ProximityPrompt") and obj ~= player.Character then
+							local actionText = "[E] " .. (child.ActionText or "Use")
+							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
+								createESP(obj, theme.Text, actionText)
+								found = found + 1
+							end
+							break
+						end
+					end
+				end
+			else
+				-- Для обычных предметов ищем по имени
+				local objName = obj.Name:lower()
+				for _, name in pairs(names) do
+					local searchName = name:lower()
+					if objName == searchName or objName:find(searchName, 1, true) then
+						if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+							createESP(obj, color or theme.Text, defaultText)
+							found = found + 1
+						end
+						break
+					end
+				end
+			end
+		end
+	end
+	return found
+end
+
+--------- Функция переключения
+local function toggleESP(type)
+	if type == "Items" then
+		if espEnabled.Items then
+			espEnabled.Items = false
+			ItemsSlider.Text = "OFF"
+			ItemsSlider.BackgroundColor3 = theme.Background2
+			ItemsSlider.TextColor3 = theme.TextDim
+		else
+			espEnabled.Items = true
+			ItemsSlider.Text = "ON"
+			ItemsSlider.BackgroundColor3 = theme.Accent
+			ItemsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+			local found = findObjects(itemNames, nil, "Item", false)
+			print("Предметов найдено:", found)
+		end
+
+	elseif type == "Coins" then
+		if espEnabled.Coins then
+			espEnabled.Coins = false
+			CoinsSlider.Text = "OFF"
+			CoinsSlider.BackgroundColor3 = theme.Background2
+			CoinsSlider.TextColor3 = theme.TextDim
+		else
+			espEnabled.Coins = true
+			CoinsSlider.Text = "ON"
+			CoinsSlider.BackgroundColor3 = theme.Accent
+			CoinsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+			local found = findObjects(coinNames, nil, "Coin", false)
+			print("Монет найдено:", found)
+		end
+
+	elseif type == "Interact" then
+		if espEnabled.Interact then
+			espEnabled.Interact = false
+			InteractSlider.Text = "OFF"
+			InteractSlider.BackgroundColor3 = theme.Background2
+			InteractSlider.TextColor3 = theme.TextDim
+		else
+			espEnabled.Interact = true
+			InteractSlider.Text = "ON"
+			InteractSlider.BackgroundColor3 = theme.Accent
+			InteractSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+			local found = findObjects({}, nil, "", true)
+			print("Интерактивных объектов найдено:", found)
+		end
+	end
+
+	if not espEnabled.Items and not espEnabled.Coins and not espEnabled.Interact then
+		clearESP()
+	end
+end
+
+--------- Функция для перетаскивания
+local function makeDraggable(draggableObject, dragHandle)
+	dragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragInput = input
+			dragStart = input.Position
+			startPos = draggableObject.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	dragHandle.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			dragInput = input
+		end
+	end)
+
+	game:GetService("UserInputService").InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			draggableObject.Position = UDim2.new(
+				startPos.X.Scale, 
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale, 
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+--------- КНОПКА ОТКРЫТИЯ (сверху посередине)
+frame1Lobby.Size = UDim2.new(0, 70, 0, 30)
+frame1Lobby.Position = UDim2.new(0.5, -35, 0.01, 0)
+UICorner1.Parent = frame1Lobby
+UICorner1.CornerRadius = UDim.new(0, 4)
+UIStroke1.Parent = frame1Lobby
+UIStroke1.Thickness = 1
+UIStroke1.Color = theme.Border
+frame1Lobby.TextScaled = false
+frame1Lobby.TextSize = 16
+frame1Lobby.Text = "MENU"
+frame1Lobby.BackgroundColor3 = theme.Background
+frame1Lobby.TextColor3 = theme.Text
+frame1Lobby.Font = Enum.Font.GothamBold
+
+-- Полоска для перетаскивания кнопки
+dragButton.Size = UDim2.new(1, 0, 0, 6)
+dragButton.Position = UDim2.new(0, 0, 0, 0)
+dragButton.BackgroundColor3 = theme.Border
+dragButton.BackgroundTransparency = 0.5
+dragButton.Parent = frame1Lobby
+UICorner9.Parent = dragButton
+UICorner9.CornerRadius = UDim.new(0, 2)
+
+-- Делаем кнопку перетаскиваемой
+makeDraggable(frame1Lobby, dragButton)
+
+------------- ГЛАВНОЕ МЕНЮ
+frame2menu.Size = UDim2.new(0, 200, 0, 320)
+frame2menu.Position = UDim2.new(0.5, -100, 0.5, -160)
+frame2menu.BackgroundColor3 = theme.Background
+UIStroke2.Parent = frame2menu
+UIStroke2.Thickness = 1
+UIStroke2.Color = theme.Border
+UICorner2.Parent = frame2menu
+UICorner2.CornerRadius = UDim.new(0, 6)
+
+-- Полоска для перетаскивания меню
+dragFrame.Size = UDim2.new(1, 0, 0, 20)
+dragFrame.Position = UDim2.new(0, 0, 0, 0)
+dragFrame.BackgroundColor3 = theme.Border
+dragFrame.BackgroundTransparency = 0.8
+dragFrame.Parent = frame2menu
+UICorner10.Parent = dragFrame
+UICorner10.CornerRadius = UDim.new(0, 2)
+
+-- Делаем меню перетаскиваемым
+makeDraggable(frame2menu, dragFrame)
+
+------------- Заголовок
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Parent = frame2menu
+titleLabel.Size = UDim2.new(1, 0, 0, 40)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "FUN"
+titleLabel.TextColor3 = theme.Accent
+titleLabel.TextSize = 20
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+------------- ExitButton (X в углу)
+Exit.Size = UDim2.new(0, 30, 0, 30)
+Exit.Position = UDim2.new(1, -35, 0, 5)
+Exit.Parent = frame2menu
+Exit.BackgroundColor3 = theme.Background2
+UICorner3.Parent = Exit
+UICorner3.CornerRadius = UDim.new(0, 4)
+Exit.Text = "X"
+Exit.TextSize = 16
+Exit.TextColor3 = theme.TextDim
+Exit.Font = Enum.Font.GothamBold
+
+------------- Разделитель
+local divider = Instance.new("Frame")
+divider.Parent = frame2menu
+divider.Size = UDim2.new(1, -20, 0, 1)
+divider.Position = UDim2.new(0, 10, 0, 45)
+divider.BackgroundColor3 = theme.Border
+divider.BorderSizePixel = 0
+
+------------- SPEED секция
+textSpeed.Parent = frame2menu
+textSpeed.Size = UDim2.new(1, -20, 0, 20)
+textSpeed.Position = UDim2.new(0, 10, 0, 55)
+textSpeed.BackgroundTransparency = 1
+textSpeed.Text = "SPEED"
+textSpeed.TextColor3 = theme.Text
+textSpeed.TextSize = 14
+textSpeed.Font = Enum.Font.GothamBold
+textSpeed.TextXAlignment = Enum.TextXAlignment.Left
+
+TextBox.Parent = frame2menu
+TextBox.Size = UDim2.new(0, 70, 0, 24)
+TextBox.Position = UDim2.new(1, -85, 0, 52)
+TextBox.BackgroundColor3 = theme.Background2
+TextBox.Text = "16"
+TextBox.TextColor3 = theme.Text
+TextBox.TextSize = 14
+TextBox.Font = Enum.Font.Gotham
+UICorner4.Parent = TextBox
+UICorner4.CornerRadius = UDim.new(0, 4)
+UIStroke3.Parent = TextBox
+UIStroke3.Thickness = 1
+UIStroke3.Color = theme.Border
+
+------------- NIGHT VISION секция
+textNightVision.Parent = frame2menu
+textNightVision.Size = UDim2.new(1, -20, 0, 20)
+textNightVision.Position = UDim2.new(0, 10, 0, 90)
+textNightVision.BackgroundTransparency = 1
+textNightVision.Text = "NIGHT VISION"
+textNightVision.TextColor3 = theme.Text
+textNightVision.TextSize = 14
+textNightVision.Font = Enum.Font.GothamBold
+textNightVision.TextXAlignment = Enum.TextXAlignment.Left
+
+EpSlider.Parent = frame2menu
+EpSlider.Size = UDim2.new(0, 70, 0, 24)
+EpSlider.Position = UDim2.new(1, -85, 0, 87)
+EpSlider.Text = "OFF"
+EpSlider.TextSize = 14
+EpSlider.BackgroundColor3 = theme.Background2
+EpSlider.TextColor3 = theme.TextDim
+EpSlider.Font = Enum.Font.Gotham
+UICorner5.Parent = EpSlider
+UICorner5.CornerRadius = UDim.new(0, 4)
+
+------------- Разделитель
+local divider2 = Instance.new("Frame")
+divider2.Parent = frame2menu
+divider2.Size = UDim2.new(1, -20, 0, 1)
+divider2.Position = UDim2.new(0, 10, 0, 125)
+divider2.BackgroundColor3 = theme.Border
+divider2.BorderSizePixel = 0
+
+------------- ITEMS ESP
+textItems.Parent = frame2menu
+textItems.Size = UDim2.new(1, -20, 0, 20)
+textItems.Position = UDim2.new(0, 10, 0, 140)
+textItems.BackgroundTransparency = 1
+textItems.Text = "ITEMS ESP"
+textItems.TextColor3 = theme.Text
+textItems.TextSize = 14
+textItems.Font = Enum.Font.GothamBold
+textItems.TextXAlignment = Enum.TextXAlignment.Left
+
+ItemsSlider.Parent = frame2menu
+ItemsSlider.Size = UDim2.new(0, 70, 0, 24)
+ItemsSlider.Position = UDim2.new(1, -85, 0, 137)
+ItemsSlider.Text = "OFF"
+ItemsSlider.TextSize = 14
+ItemsSlider.BackgroundColor3 = theme.Background2
+ItemsSlider.TextColor3 = theme.TextDim
+ItemsSlider.Font = Enum.Font.Gotham
+UICorner6.Parent = ItemsSlider
+UICorner6.CornerRadius = UDim.new(0, 4)
+
+------------- COINS ESP
+textCoins.Parent = frame2menu
+textCoins.Size = UDim2.new(1, -20, 0, 20)
+textCoins.Position = UDim2.new(0, 10, 0, 175)
+textCoins.BackgroundTransparency = 1
+textCoins.Text = "COINS ESP"
+textCoins.TextColor3 = theme.Text
+textCoins.TextSize = 14
+textCoins.Font = Enum.Font.GothamBold
+textCoins.TextXAlignment = Enum.TextXAlignment.Left
+
+CoinsSlider.Parent = frame2menu
+CoinsSlider.Size = UDim2.new(0, 70, 0, 24)
+CoinsSlider.Position = UDim2.new(1, -85, 0, 172)
+CoinsSlider.Text = "OFF"
+CoinsSlider.TextSize = 14
+CoinsSlider.BackgroundColor3 = theme.Background2
+CoinsSlider.TextColor3 = theme.TextDim
+CoinsSlider.Font = Enum.Font.Gotham
+UICorner7.Parent = CoinsSlider
+UICorner7.CornerRadius = UDim.new(0, 4)
+
+------------- INTERACT ESP
+textInteract.Parent = frame2menu
+textInteract.Size = UDim2.new(1, -20, 0, 20)
+textInteract.Position = UDim2.new(0, 10, 0, 210)
+textInteract.BackgroundTransparency = 1
+textInteract.Text = "INTERACT ESP"
+textInteract.TextColor3 = theme.Text
+textInteract.TextSize = 14
+textInteract.Font = Enum.Font.GothamBold
+textInteract.TextXAlignment = Enum.TextXAlignment.Left
+
+InteractSlider.Parent = frame2menu
+InteractSlider.Size = UDim2.new(0, 70, 0, 24)
+InteractSlider.Position = UDim2.new(1, -85, 0, 207)
+InteractSlider.Text = "OFF"
+InteractSlider.TextSize = 14
+InteractSlider.BackgroundColor3 = theme.Background2
+InteractSlider.TextColor3 = theme.TextDim
+InteractSlider.Font = Enum.Font.Gotham
+UICorner8.Parent = InteractSlider
+UICorner8.CornerRadius = UDim.new(0, 4)
+
+------------- Нижний разделитель
+local divider3 = Instance.new("Frame")
+divider3.Parent = frame2menu
+divider3.Size = UDim2.new(1, -20, 0, 1)
+divider3.Position = UDim2.new(0, 10, 0, 245)
+divider3.BackgroundColor3 = theme.Border
+divider3.BorderSizePixel = 0
+
+------------- Футер
+local footerLabel = Instance.new("TextLabel")
+footerLabel.Parent = frame2menu
+footerLabel.Size = UDim2.new(1, 0, 0, 25)
+footerLabel.Position = UDim2.new(0, 0, 1, -30)
+footerLabel.BackgroundTransparency = 1
+footerLabel.Text = "v1.0"
+footerLabel.TextColor3 = theme.TextDim
+footerLabel.TextSize = 12
+footerLabel.Font = Enum.Font.Gotham
+footerLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+--------- scripts
+
+frame1Lobby.MouseButton1Click:Connect(function()
+	frame1Lobby.Visible = false
+	frame2menu.Visible = true
+end)
+
+Exit.MouseButton1Click:Connect(function()
+	frame1Lobby.Visible = true
+	frame2menu.Visible = false
+end)
+
+EpSlider.MouseButton1Click:Connect(function()
+	if EpSlider.Text == "OFF" then
+		EpSlider.Text = "ON"
+		light.Enabled = true
+		EpSlider.BackgroundColor3 = theme.Accent
+		EpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+	else
+		EpSlider.Text = "OFF"
+		light.Enabled = false
+		EpSlider.BackgroundColor3 = theme.Background2
+		EpSlider.TextColor3 = theme.TextDim
+	end
+end)
+
+ItemsSlider.MouseButton1Click:Connect(function()
+	toggleESP("Items")
+end)
+
+CoinsSlider.MouseButton1Click:Connect(function()
+	toggleESP("Coins")
+end)
+
+InteractSlider.MouseButton1Click:Connect(function()
+	toggleESP("Interact")
+end)
+
+game:GetService("RunService").RenderStepped:Connect(updateESP)
+
+spawn(function()
+	while wait(0.1) do
+		local character = game.Players.LocalPlayer.Character
+		if character and character:FindFirstChild("Humanoid") then
+			local speed = tonumber(TextBox.Text) or 16
+			character.Humanoid.WalkSpeed = speed
+		end
+	end
+end)
+
+print("Меню загружено! Можно перетаскивать:")
+print("- Кнопку MENU (тяни за верхнюю полоску)")
+print("- Главное меню (тяни за верхнюю полоску)")
