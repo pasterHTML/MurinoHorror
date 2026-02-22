@@ -32,6 +32,7 @@ local UICorner7 = Instance.new("UICorner")
 local UICorner8 = Instance.new("UICorner")
 local UICorner9 = Instance.new("UICorner")
 local UICorner10 = Instance.new("UICorner")
+local UICorner11 = Instance.new("UICorner") -- Для новой кнопки
 
 -- Обводки
 local UIStroke1 = Instance.new("UIStroke")
@@ -40,18 +41,21 @@ local UIStroke3 = Instance.new("UIStroke")
 local UIStroke4 = Instance.new("UIStroke")
 local UIStroke5 = Instance.new("UIStroke")
 local UIStroke6 = Instance.new("UIStroke")
+local UIStroke7 = Instance.new("UIStroke") -- Для новой кнопки
 
 local Exit = Instance.new("TextButton")
 local EpSlider = Instance.new("TextButton")
 local ItemsSlider = Instance.new("TextButton")
 local CoinsSlider = Instance.new("TextButton")
 local InteractSlider = Instance.new("TextButton")
+local NoclipSlider = Instance.new("TextButton") -- Новая кнопка
 
 local textSpeed = Instance.new("TextLabel")
 local textNightVision = Instance.new("TextLabel")
 local textItems = Instance.new("TextLabel")
 local textCoins = Instance.new("TextLabel")
 local textInteract = Instance.new("TextLabel")
+local textNoclip = Instance.new("TextLabel") -- Новый текст
 
 local TextBox = Instance.new("TextBox")
 
@@ -82,15 +86,17 @@ local espEnabled = {
 	Interact = false
 }
 
+local noclipEnabled = false -- Переменная для ноклипа
+
 local espObjects = {}
-local processedObjects = {} -- Для отслеживания уже обработанных объектов
+local processedObjects = {}
 
 --------- Таблицы с названиями
 local itemNames = {
 	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
 	"Switch", "Lever", "Artifact", "Scroll", "Potion", "Health", 
 	"Medkit", "Bandage", "Ammo", "Weapon", "Gun", "Sword", "Axe",
-	"Tool", "Hammer", "Part"
+	"Tool", "Hammer", "Part", "Flashlight", "Lantern", "Torch", "Light"
 }
 
 local coinNames = {
@@ -110,7 +116,6 @@ local function createESP(obj, color, customText)
 
 	if not rootPart then return end
 
-	-- Billboard для текста
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ESP_Billboard"
 	billboard.Parent = rootPart
@@ -122,7 +127,6 @@ local function createESP(obj, color, customText)
 	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	billboard.ResetOnSpawn = false
 
-	-- Фон
 	local frame = Instance.new("Frame")
 	frame.Parent = billboard
 	frame.Size = UDim2.new(1, 0, 1, 0)
@@ -134,13 +138,11 @@ local function createESP(obj, color, customText)
 	frameCorner.CornerRadius = UDim.new(0, 3)
 	frameCorner.Parent = frame
 
-	-- Обводка
 	local frameStroke = Instance.new("UIStroke")
 	frameStroke.Parent = frame
 	frameStroke.Thickness = 1
 	frameStroke.Color = theme.Border
 
-	-- Название
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Parent = frame
 	nameLabel.Size = UDim2.new(1, -8, 0.5, 0)
@@ -152,7 +154,6 @@ local function createESP(obj, color, customText)
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-	-- Текст действия и дистанция
 	local infoLabel = Instance.new("TextLabel")
 	infoLabel.Parent = frame
 	infoLabel.Size = UDim2.new(1, -8, 0.5, 0)
@@ -164,7 +165,6 @@ local function createESP(obj, color, customText)
 	infoLabel.Font = Enum.Font.Gotham
 	infoLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-	-- Линия-трейсер
 	local tracer = Instance.new("Frame")
 	tracer.Name = "Tracer_" .. obj.Name
 	tracer.Parent = screen
@@ -241,7 +241,6 @@ local function updateESP()
 		end
 	end
 	
-	-- Очищаем удаленные объекты
 	for i = #espObjects, 1, -1 do
 		if not espObjects[i].billboard or not espObjects[i].billboard.Parent then
 			if espObjects[i].tracer then espObjects[i].tracer:Destroy() end
@@ -273,64 +272,77 @@ local function clearESPByType(type)
 	end
 end
 
---------- Оптимизированная функция поиска объектов (без логов)
-local function findObjects(names, color, defaultText, isInteract)
+--------- Функция поиска предметов по имени
+local function findObjectsByName(names, color, defaultText)
 	local found = 0
-	for _, obj in pairs(workspace:GetChildren()) do
+	for _, obj in pairs(workspace:GetDescendants()) do
 		if not obj:IsA("Player") and obj.Parent ~= player.Character and not processedObjects[obj] then
-			local function checkObject(obj)
-				if processedObjects[obj] then return end
-				
-				if isInteract then
-					if obj:IsA("ProximityPrompt") then
-						local parent = obj.Parent
-						if parent and parent ~= player.Character and not processedObjects[parent] then
-							local actionText = "[E] " .. (obj.ActionText or "Use")
-							if parent:IsA("Model") or parent:IsA("BasePart") or parent:IsA("MeshPart") then
-								createESP(parent, theme.Text, actionText)
-								found = found + 1
-							end
-						end
-					else
-						for _, child in pairs(obj:GetChildren()) do
-							if child:IsA("ProximityPrompt") and obj ~= player.Character and not processedObjects[obj] then
-								local actionText = "[E] " .. (child.ActionText or "Use")
-								if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
-									createESP(obj, theme.Text, actionText)
-									found = found + 1
-								end
-								break
-							end
-						end
+			local objName = obj.Name:lower()
+			for _, name in pairs(names) do
+				local searchName = name:lower()
+				if objName == searchName or objName:find(searchName, 1, true) then
+					if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+						createESP(obj, color, defaultText)
+						found = found + 1
 					end
-				else
-					local objName = obj.Name:lower()
-					for _, name in pairs(names) do
-						local searchName = name:lower()
-						if objName == searchName or objName:find(searchName, 1, true) then
-							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
-								createESP(obj, color or theme.Text, defaultText)
-								found = found + 1
-							end
-							break
-						end
-					end
-				end
-				
-				if obj:IsA("Model") or obj:IsA("Folder") then
-					for _, child in pairs(obj:GetChildren()) do
-						checkObject(child)
-					end
+					break
 				end
 			end
-			
-			checkObject(obj)
 		end
 	end
 	return found
 end
 
---------- Функция переключения (лог только при включении)
+--------- Функция поиска интерактивных объектов (с промптами)
+local function findInteractObjects()
+	local found = 0
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if not obj:IsA("Player") and obj.Parent ~= player.Character and not processedObjects[obj] then
+			
+			local hasPrompt = false
+			local promptText = ""
+			
+			if obj:IsA("ProximityPrompt") then
+				local parent = obj.Parent
+				if parent and parent ~= player.Character and not processedObjects[parent] then
+					promptText = obj.ActionText or "Use"
+					obj = parent
+					hasPrompt = true
+				end
+			else
+				for _, child in pairs(obj:GetDescendants()) do
+					if child:IsA("ProximityPrompt") then
+						promptText = child.ActionText or "Use"
+						hasPrompt = true
+						break
+					end
+				end
+			end
+			
+			if hasPrompt then
+				if obj:IsA("Model") then
+					local hasParts = false
+					for _, child in pairs(obj:GetDescendants()) do
+						if child:IsA("BasePart") or child:IsA("MeshPart") then
+							hasParts = true
+							break
+						end
+					end
+					if hasParts then
+						createESP(obj, Color3.fromRGB(180, 180, 255), "[E] " .. promptText)
+						found = found + 1
+					end
+				elseif obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+					createESP(obj, Color3.fromRGB(180, 180, 255), "[E] " .. promptText)
+					found = found + 1
+				end
+			end
+		end
+	end
+	return found
+end
+
+--------- Функция переключения
 local function toggleESP(type)
 	if type == "Items" then
 		if espEnabled.Items then
@@ -345,7 +357,7 @@ local function toggleESP(type)
 			ItemsSlider.BackgroundColor3 = theme.Accent
 			ItemsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 			spawn(function()
-				local found = findObjects(itemNames, Color3.fromRGB(255, 200, 100), "Item", false)
+				local found = findObjectsByName(itemNames, Color3.fromRGB(255, 200, 100), "Item")
 				if found > 0 then print("✅ Предметов ESP найдено:", found) end
 			end)
 		end
@@ -363,7 +375,7 @@ local function toggleESP(type)
 			CoinsSlider.BackgroundColor3 = theme.Accent
 			CoinsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 			spawn(function()
-				local found = findObjects(coinNames, Color3.fromRGB(255, 255, 100), "Coin", false)
+				local found = findObjectsByName(coinNames, Color3.fromRGB(255, 255, 100), "Coin")
 				if found > 0 then print("🪙 Монет ESP найдено:", found) end
 			end)
 		end
@@ -381,14 +393,54 @@ local function toggleESP(type)
 			InteractSlider.BackgroundColor3 = theme.Accent
 			InteractSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 			spawn(function()
-				local found = findObjects({}, nil, "", true)
+				local found = findInteractObjects()
 				if found > 0 then print("🤝 Интерактивных объектов ESP найдено:", found) end
 			end)
 		end
 	end
 end
 
---------- Функция для поиска новых объектов (оптимизированная)
+--------- Функция для ноклипа
+local function toggleNoclip()
+	noclipEnabled = not noclipEnabled
+	
+	if noclipEnabled then
+		NoclipSlider.Text = "ON"
+		NoclipSlider.BackgroundColor3 = theme.Accent
+		NoclipSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+		print("🚪 Noclip ВКЛЮЧЕН - можно проходить сквозь стены")
+	else
+		NoclipSlider.Text = "OFF"
+		NoclipSlider.BackgroundColor3 = theme.Background2
+		NoclipSlider.TextColor3 = theme.TextDim
+		print("🚪 Noclip ВЫКЛЮЧЕН")
+	end
+end
+
+--------- Функция ноклипа (обновляется каждый кадр)
+local function noclipLoop()
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChild("Humanoid")
+	if not humanoid then return end
+	
+	if noclipEnabled then
+		for _, part in pairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	else
+		for _, part in pairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = true
+			end
+		end
+	end
+end
+
+--------- Мониторинг новых объектов
 local function setupObjectMonitor()
 	workspace.DescendantAdded:Connect(function(obj)
 		if not processedObjects[obj] and obj.Parent ~= player.Character then
@@ -421,13 +473,29 @@ local function setupObjectMonitor()
 					end
 					
 					if espEnabled.Interact and not processedObjects[obj] then
-						for _, child in pairs(obj:GetChildren()) do
-							if child:IsA("ProximityPrompt") then
-								local actionText = "[E] " .. (child.ActionText or "Use")
-								if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
-									createESP(obj, theme.Text, actionText)
+						local hasPrompt = false
+						local promptText = ""
+						
+						if obj:IsA("ProximityPrompt") then
+							local parent = obj.Parent
+							if parent and parent ~= player.Character then
+								promptText = obj.ActionText or "Use"
+								obj = parent
+								hasPrompt = true
+							end
+						else
+							for _, child in pairs(obj:GetChildren()) do
+								if child:IsA("ProximityPrompt") then
+									promptText = child.ActionText or "Use"
+									hasPrompt = true
+									break
 								end
-								break
+							end
+						end
+						
+						if hasPrompt then
+							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Tool") then
+								createESP(obj, Color3.fromRGB(180, 180, 255), "[E] " .. promptText)
 							end
 						end
 					end
@@ -497,9 +565,9 @@ UICorner9.Parent = dragButton
 UICorner9.CornerRadius = UDim.new(0, 2)
 makeDraggable(frame1Lobby, dragButton)
 
-------------- ГЛАВНОЕ МЕНЮ
-frame2menu.Size = UDim2.new(0, 200, 0, 320)
-frame2menu.Position = UDim2.new(0.5, -100, 0.5, -160)
+------------- ГЛАВНОЕ МЕНЮ (увеличил высоту для новой кнопки)
+frame2menu.Size = UDim2.new(0, 200, 0, 360) -- Было 320, стало 360
+frame2menu.Position = UDim2.new(0.5, -100, 0.5, -180)
 frame2menu.BackgroundColor3 = theme.Background
 UIStroke2.Parent = frame2menu
 UIStroke2.Thickness = 1
@@ -669,11 +737,33 @@ InteractSlider.Font = Enum.Font.Gotham
 UICorner8.Parent = InteractSlider
 UICorner8.CornerRadius = UDim.new(0, 4)
 
+------------- NOCLIP секция (НОВАЯ)
+textNoclip.Parent = frame2menu
+textNoclip.Size = UDim2.new(1, -20, 0, 20)
+textNoclip.Position = UDim2.new(0, 10, 0, 245)
+textNoclip.BackgroundTransparency = 1
+textNoclip.Text = "NOCLIP"
+textNoclip.TextColor3 = theme.Text
+textNoclip.TextSize = 14
+textNoclip.Font = Enum.Font.GothamBold
+textNoclip.TextXAlignment = Enum.TextXAlignment.Left
+
+NoclipSlider.Parent = frame2menu
+NoclipSlider.Size = UDim2.new(0, 70, 0, 24)
+NoclipSlider.Position = UDim2.new(1, -85, 0, 242)
+NoclipSlider.Text = "OFF"
+NoclipSlider.TextSize = 14
+NoclipSlider.BackgroundColor3 = theme.Background2
+NoclipSlider.TextColor3 = theme.TextDim
+NoclipSlider.Font = Enum.Font.Gotham
+UICorner11.Parent = NoclipSlider
+UICorner11.CornerRadius = UDim.new(0, 4)
+
 ------------- Нижний разделитель
 local divider3 = Instance.new("Frame")
 divider3.Parent = frame2menu
 divider3.Size = UDim2.new(1, -20, 0, 1)
-divider3.Position = UDim2.new(0, 10, 0, 245)
+divider3.Position = UDim2.new(0, 10, 0, 280)
 divider3.BackgroundColor3 = theme.Border
 divider3.BorderSizePixel = 0
 
@@ -727,10 +817,18 @@ InteractSlider.MouseButton1Click:Connect(function()
 	toggleESP("Interact")
 end)
 
--- Запускаем мониторинг новых объектов
+NoclipSlider.MouseButton1Click:Connect(function()
+	toggleNoclip()
+end)
+
 setupObjectMonitor()
 
 game:GetService("RunService").RenderStepped:Connect(updateESP)
+
+-- Запускаем ноклип в постоянном цикле
+game:GetService("RunService").Heartbeat:Connect(function()
+	noclipLoop()
+end)
 
 spawn(function()
 	while wait(0.1) do
@@ -743,4 +841,7 @@ spawn(function()
 end)
 
 print("✅ Меню загружено! ESP оптимизирован и работает без фризов")
-print("📌 Кнопку MENU и меню можно перетаскивать за верхнюю полоску")
+print("📌 Items ESP - оранжевый")
+print("📌 Coins ESP - желтый") 
+print("📌 Interact ESP - сиреневый (только объекты с ProximityPrompt)")
+print("📌 NOCLIP - прохождение сквозь стены")
