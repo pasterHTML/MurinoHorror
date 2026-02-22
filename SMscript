@@ -36,6 +36,7 @@ local UICorner9 = Instance.new("UICorner")
 local UICorner10 = Instance.new("UICorner")
 local UICorner11 = Instance.new("UICorner")
 local UICorner12 = Instance.new("UICorner")
+local UICorner13 = Instance.new("UICorner") -- Для новой кнопки
 
 -- Обводки
 local UIStroke1 = Instance.new("UIStroke")
@@ -46,6 +47,7 @@ local UIStroke5 = Instance.new("UIStroke")
 local UIStroke6 = Instance.new("UIStroke")
 local UIStroke7 = Instance.new("UIStroke")
 local UIStroke8 = Instance.new("UIStroke")
+local UIStroke9 = Instance.new("UIStroke") -- Для новой кнопки
 
 local Exit = Instance.new("TextButton")
 local EpSlider = Instance.new("TextButton")
@@ -54,6 +56,7 @@ local CoinsSlider = Instance.new("TextButton")
 local InteractSlider = Instance.new("TextButton")
 local NoclipSlider = Instance.new("TextButton")
 local MonstersSlider = Instance.new("TextButton")
+local DoorsSlider = Instance.new("TextButton") -- Новая кнопка
 
 local textSpeed = Instance.new("TextLabel")
 local textNightVision = Instance.new("TextLabel")
@@ -62,6 +65,7 @@ local textCoins = Instance.new("TextLabel")
 local textInteract = Instance.new("TextLabel")
 local textNoclip = Instance.new("TextLabel")
 local textMonsters = Instance.new("TextLabel")
+local textDoors = Instance.new("TextLabel") -- Новый текст
 
 local TextBox = Instance.new("TextBox")
 
@@ -102,7 +106,8 @@ local espEnabled = {
 	Items = false,
 	Coins = false,
 	Interact = false,
-	Monsters = false
+	Monsters = false,
+	Doors = false
 }
 
 local noclipEnabled = false
@@ -131,75 +136,19 @@ local coinNames = {
 
 --------- === МОНСТРЫ === ---------
 local monsterDefinitions = {
-	-- Раш-Друн (nextbot)
+	-- ТОЛЬКО РАШ (Rush) - с большой буквы в displayName
 	{
-		keywords = {"раш", "друн", "rush", "drown", "vent", "tancpol"},
-		displayName = "⚠️ NEXTBOT (РАШ) ⚠️",
+		keywords = {"Rush", "раш"},
+		displayName = "⚠️ RUSH ⚠️",
 		color = Color3.fromRGB(255, 0, 0),
 		dangerous = true
 	},
 	
-	-- Стена плоти
+	-- Артур (Artur)
 	{
-		keywords = {"стена", "плоть", "wall", "flesh", "roomwood", "wood"},
-		displayName = "🧱 СТЕНА ПЛОТИ",
-		color = Color3.fromRGB(150, 0, 0),
-		dangerous = true
-	},
-	
-	-- Фог (появляется если бежать назад)
-	{
-		keywords = {"фог", "fog", "туман", "trainfloor", "train"},
-		displayName = "👻 ФОГ",
-		color = Color3.fromRGB(150, 150, 150),
-		dangerous = false
-	},
-	
-	-- Артур
-	{
-		keywords = {"артур", "arthur", "artur"},
-		displayName = "👑 АРТУР",
+		keywords = {"artur", "артур"},
+		displayName = "👑 ARTUR",
 		color = Color3.fromRGB(255, 255, 0),
-		dangerous = false
-	},
-	
-	-- Doors (просто переход)
-	{
-		keywords = {"doors", "door", "дверь", "двери"},
-		displayName = "🚪 DOORS",
-		color = Color3.fromRGB(100, 200, 255),
-		dangerous = false
-	},
-	
-	-- Остальные монстры
-	{
-		keywords = {"голодный", "hungry"},
-		displayName = "👹 ГОЛОДНЫЙ",
-		color = Color3.fromRGB(255, 150, 0),
-		dangerous = false
-	},
-	{
-		keywords = {"заяц", "bunny"},
-		displayName = "🐰 ЗАЯЦ",
-		color = Color3.fromRGB(255, 200, 255),
-		dangerous = false
-	},
-	{
-		keywords = {"обреч", "doom"},
-		displayName = "💀 ОБРЕЧЕННЫЙ",
-		color = Color3.fromRGB(100, 0, 100),
-		dangerous = false
-	},
-	{
-		keywords = {"анточ", "ant"},
-		displayName = "🐜 АНТОЧ",
-		color = Color3.fromRGB(139, 69, 19),
-		dangerous = false
-	},
-	{
-		keywords = {"чигур", "chig"},
-		displayName = "🔪 ЧИГУР",
-		color = Color3.fromRGB(0, 255, 0),
 		dangerous = false
 	}
 }
@@ -210,7 +159,7 @@ local function identifyMonster(obj)
 	
 	for _, monster in ipairs(monsterDefinitions) do
 		for _, keyword in ipairs(monster.keywords) do
-			if objName:find(keyword, 1, true) then
+			if objName == keyword or objName:find(keyword, 1, true) then
 				return monster.displayName, monster.color, monster.dangerous
 			end
 		end
@@ -220,7 +169,7 @@ local function identifyMonster(obj)
 		local childName = child.Name:lower()
 		for _, monster in ipairs(monsterDefinitions) do
 			for _, keyword in ipairs(monster.keywords) do
-				if childName:find(keyword, 1, true) then
+				if childName == keyword or childName:find(keyword, 1, true) then
 					return monster.displayName, monster.color, monster.dangerous
 				end
 			end
@@ -240,7 +189,7 @@ local function findNextbots()
 				local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
 								 parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
 				if rootPart then
-					createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+					createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
 					
 					for _, esp in pairs(espObjects) do
 						if esp.obj == parent then
@@ -267,7 +216,7 @@ local function findNextbots()
 				local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
 								 obj:FindFirstChild("Torso") or obj:FindFirstChild("Head")
 				if rootPart then
-					createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+					createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
 					
 					for _, esp in pairs(espObjects) do
 						if esp.obj == obj then
@@ -277,6 +226,28 @@ local function findNextbots()
 					end
 					
 					found = found + 1
+				end
+			end
+		end
+	end
+	return found
+end
+
+--------- Функция поиска DOORS
+local function findDoors()
+	local found = 0
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if not processedObjects[obj] then
+			local objName = obj.Name:lower()
+			-- Ищем только точные названия
+			if objName == "doors" or objName == "door" or objName == "дверь" or objName == "двери" then
+				if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
+					local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
+									obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj
+					if rootPart then
+						createESP(obj, Color3.fromRGB(100, 200, 255), "🚪 DOORS")
+						found = found + 1
+					end
 				end
 			end
 		end
@@ -305,7 +276,7 @@ local function createWarning()
 	warningLabel.Parent = warningFrame
 	warningLabel.Size = UDim2.new(1, 0, 1, 0)
 	warningLabel.BackgroundTransparency = 1
-	warningLabel.Text = "⚠️ NEXTBOT РЯДОМ! ⚠️"
+	warningLabel.Text = "⚠️ RUSH РЯДОМ! ⚠️"
 	warningLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	warningLabel.TextSize = 20
 	warningLabel.Font = Enum.Font.GothamBold
@@ -453,7 +424,7 @@ local function createESP(obj, color, customText)
 	processedObjects[obj] = true
 end
 
---------- Функция проверки ближайших монстров при получении урона
+--------- Функция проверки ближайших монстров при получении урона (ИСПРАВЛЕННАЯ)
 local function checkNearbyMonsters()
 	local character = player.Character
 	if not character then return end
@@ -461,24 +432,7 @@ local function checkNearbyMonsters()
 	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
 	if not rootPart then return end
 	
-	local closestMonster = nil
-	local closestDistance = 15 -- Радиус поиска
-	local closestName = "Неизвестно"
-	
-	-- Проверяем всех подсвеченных монстров
-	for _, esp in pairs(espObjects) do
-		if esp.isDangerous and esp.rootPart and esp.rootPart.Parent then
-			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
-			
-			if distance < closestDistance then
-				closestDistance = distance
-				closestMonster = esp
-				closestName = esp.customText or "Монстр"
-			end
-		end
-	end
-	
-	-- Проверяем Nextbot'ов отдельно
+	-- Сначала проверяем BillboardGui (это 100% Раш)
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BillboardGui") then
 			local parent = obj.Parent
@@ -487,11 +441,35 @@ local function checkNearbyMonsters()
 								  parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
 				if parentRoot then
 					local distance = (rootPart.Position - parentRoot.Position).Magnitude
-					if distance < closestDistance then
-						closestDistance = distance
-						closestName = "⚠️ NEXTBOT (РАШ) ⚠️"
+					if distance < 20 then
+						-- Это Раш, игнорируем всё остальное!
+						lastDamageSource = {
+							name = "⚠️ RUSH ⚠️",
+							distance = distance,
+							time = tick()
+						}
+						lastDamageTime = tick()
+						print("🔍 РАШ АТАКУЕТ! Дистанция:", math.floor(distance))
+						return -- Выходим сразу, не проверяем другие объекты
 					end
 				end
+			end
+		end
+	end
+	
+	-- Если Раш не найден, проверяем других опасных монстров
+	local closestMonster = nil
+	local closestDistance = 15
+	local closestName = "Неизвестно"
+	
+	for _, esp in pairs(espObjects) do
+		if esp.isDangerous and esp.rootPart and esp.rootPart.Parent then
+			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
+			
+			if distance < closestDistance then
+				closestDistance = distance
+				closestMonster = esp
+				closestName = esp.customText or "Монстр"
 			end
 		end
 	end
@@ -738,6 +716,8 @@ local function clearESPByType(type)
 			shouldRemove = true
 		elseif type == "Monsters" then
 			shouldRemove = true
+		elseif type == "Doors" and esp.customText and esp.customText:find("🚪") then
+			shouldRemove = true
 		end
 		
 		if shouldRemove then
@@ -746,6 +726,26 @@ local function clearESPByType(type)
 			processedObjects[esp.obj] = nil
 			table.remove(espObjects, i)
 		end
+	end
+end
+
+--------- Функция переключения DOORS
+local function toggleDoors()
+	if espEnabled.Doors then
+		espEnabled.Doors = false
+		DoorsSlider.Text = "OFF"
+		DoorsSlider.BackgroundColor3 = theme.Background2
+		DoorsSlider.TextColor3 = theme.TextDim
+		clearESPByType("Doors")
+	else
+		espEnabled.Doors = true
+		DoorsSlider.Text = "ON"
+		DoorsSlider.BackgroundColor3 = theme.Accent
+		DoorsSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+		spawn(function()
+			local found = findDoors()
+			if found > 0 then print("🚪 DOORS ESP найдено:", found) end
+		end)
 	end
 end
 
@@ -869,7 +869,7 @@ end
 local function setupObjectMonitor()
 	workspace.DescendantAdded:Connect(function(obj)
 		if not processedObjects[obj] and obj.Parent ~= player.Character then
-			if espEnabled.Items or espEnabled.Coins or espEnabled.Interact or espEnabled.Monsters then
+			if espEnabled.Items or espEnabled.Coins or espEnabled.Interact or espEnabled.Monsters or espEnabled.Doors then
 				spawn(function()
 					wait(0.5)
 					
@@ -947,7 +947,7 @@ local function setupObjectMonitor()
 							if parent and parent:IsA("Model") and not processedObjects[parent] then
 								local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart")
 								if rootPart then
-									createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+									createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
 									for _, esp in pairs(espObjects) do
 										if esp.obj == parent then
 											esp.isDangerous = true
@@ -969,13 +969,26 @@ local function setupObjectMonitor()
 							if hasBillboard and not processedObjects[obj] then
 								local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart")
 								if rootPart then
-									createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+									createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
 									for _, esp in pairs(espObjects) do
 										if esp.obj == obj then
 											esp.isDangerous = true
 											break
 										end
 									end
+								end
+							end
+						end
+					end
+					
+					if espEnabled.Doors and not processedObjects[obj] then
+						local objName = obj.Name:lower()
+						if objName == "doors" or objName == "door" or objName == "дверь" or objName == "двери" then
+							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
+								local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
+												obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj
+								if rootPart then
+									createESP(obj, Color3.fromRGB(100, 200, 255), "🚪 DOORS")
 								end
 							end
 						end
@@ -1046,9 +1059,9 @@ UICorner9.Parent = dragButton
 UICorner9.CornerRadius = UDim.new(0, 2)
 makeDraggable(frame1Lobby, dragButton)
 
-------------- ГЛАВНОЕ МЕНЮ
-frame2menu.Size = UDim2.new(0, 200, 0, 400)
-frame2menu.Position = UDim2.new(0.5, -100, 0.5, -200)
+------------- ГЛАВНОЕ МЕНЮ (увеличено для новой кнопки)
+frame2menu.Size = UDim2.new(0, 200, 0, 440) -- Было 400, стало 440
+frame2menu.Position = UDim2.new(0.5, -100, 0.5, -220)
 frame2menu.BackgroundColor3 = theme.Background
 UIStroke2.Parent = frame2menu
 UIStroke2.Thickness = 1
@@ -1240,10 +1253,32 @@ MonstersSlider.Font = Enum.Font.Gotham
 UICorner12.Parent = MonstersSlider
 UICorner12.CornerRadius = UDim.new(0, 4)
 
+------------- DOORS ESP (НОВАЯ КНОПКА)
+textDoors.Parent = frame2menu
+textDoors.Size = UDim2.new(1, -20, 0, 20)
+textDoors.Position = UDim2.new(0, 10, 0, 280)
+textDoors.BackgroundTransparency = 1
+textDoors.Text = "DOORS ESP"
+textDoors.TextColor3 = theme.Text
+textDoors.TextSize = 14
+textDoors.Font = Enum.Font.GothamBold
+textDoors.TextXAlignment = Enum.TextXAlignment.Left
+
+DoorsSlider.Parent = frame2menu
+DoorsSlider.Size = UDim2.new(0, 70, 0, 24)
+DoorsSlider.Position = UDim2.new(1, -85, 0, 277)
+DoorsSlider.Text = "OFF"
+DoorsSlider.TextSize = 14
+DoorsSlider.BackgroundColor3 = theme.Background2
+DoorsSlider.TextColor3 = theme.TextDim
+DoorsSlider.Font = Enum.Font.Gotham
+UICorner13.Parent = DoorsSlider
+UICorner13.CornerRadius = UDim.new(0, 4)
+
 ------------- NOCLIP
 textNoclip.Parent = frame2menu
 textNoclip.Size = UDim2.new(1, -20, 0, 20)
-textNoclip.Position = UDim2.new(0, 10, 0, 280)
+textNoclip.Position = UDim2.new(0, 10, 0, 315)
 textNoclip.BackgroundTransparency = 1
 textNoclip.Text = "NOCLIP"
 textNoclip.TextColor3 = theme.Text
@@ -1253,7 +1288,7 @@ textNoclip.TextXAlignment = Enum.TextXAlignment.Left
 
 NoclipSlider.Parent = frame2menu
 NoclipSlider.Size = UDim2.new(0, 70, 0, 24)
-NoclipSlider.Position = UDim2.new(1, -85, 0, 277)
+NoclipSlider.Position = UDim2.new(1, -85, 0, 312)
 NoclipSlider.Text = "OFF"
 NoclipSlider.TextSize = 14
 NoclipSlider.BackgroundColor3 = theme.Background2
@@ -1266,7 +1301,7 @@ UICorner11.CornerRadius = UDim.new(0, 4)
 local divider3 = Instance.new("Frame")
 divider3.Parent = frame2menu
 divider3.Size = UDim2.new(1, -20, 0, 1)
-divider3.Position = UDim2.new(0, 10, 0, 315)
+divider3.Position = UDim2.new(0, 10, 0, 350)
 divider3.BackgroundColor3 = theme.Border
 divider3.BorderSizePixel = 0
 
@@ -1324,6 +1359,10 @@ MonstersSlider.MouseButton1Click:Connect(function()
 	toggleESP("Monsters")
 end)
 
+DoorsSlider.MouseButton1Click:Connect(function()
+	toggleDoors()
+end)
+
 NoclipSlider.MouseButton1Click:Connect(function()
 	toggleNoclip()
 end)
@@ -1343,6 +1382,7 @@ spawn(function()
 end)
 
 print("✅ Меню загружено!")
-print("👹 MONSTER ESP - монстры подсвечиваются")
-print("⚠️ NEXTBOT (РАШ) - ярко-красный цвет + предупреждение")
+print("👹 MONSTER ESP - только RUSH и ARTUR")
+print("⚠️ RUSH - ярко-красный цвет + предупреждение")
+print("🚪 DOORS ESP - отдельная кнопка для дверей")
 print("💀 DETECTOR - показывает кто убил")
