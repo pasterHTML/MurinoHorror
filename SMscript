@@ -36,7 +36,7 @@ local UICorner9 = Instance.new("UICorner")
 local UICorner10 = Instance.new("UICorner")
 local UICorner11 = Instance.new("UICorner")
 local UICorner12 = Instance.new("UICorner")
-local UICorner13 = Instance.new("UICorner") -- Для новой кнопки
+local UICorner13 = Instance.new("UICorner")
 
 -- Обводки
 local UIStroke1 = Instance.new("UIStroke")
@@ -47,7 +47,7 @@ local UIStroke5 = Instance.new("UIStroke")
 local UIStroke6 = Instance.new("UIStroke")
 local UIStroke7 = Instance.new("UIStroke")
 local UIStroke8 = Instance.new("UIStroke")
-local UIStroke9 = Instance.new("UIStroke") -- Для новой кнопки
+local UIStroke9 = Instance.new("UIStroke")
 
 local Exit = Instance.new("TextButton")
 local EpSlider = Instance.new("TextButton")
@@ -56,7 +56,7 @@ local CoinsSlider = Instance.new("TextButton")
 local InteractSlider = Instance.new("TextButton")
 local NoclipSlider = Instance.new("TextButton")
 local MonstersSlider = Instance.new("TextButton")
-local DoorsSlider = Instance.new("TextButton") -- Новая кнопка
+local DoorsSlider = Instance.new("TextButton")
 
 local textSpeed = Instance.new("TextLabel")
 local textNightVision = Instance.new("TextLabel")
@@ -65,7 +65,7 @@ local textCoins = Instance.new("TextLabel")
 local textInteract = Instance.new("TextLabel")
 local textNoclip = Instance.new("TextLabel")
 local textMonsters = Instance.new("TextLabel")
-local textDoors = Instance.new("TextLabel") -- Новый текст
+local textDoors = Instance.new("TextLabel")
 
 local TextBox = Instance.new("TextBox")
 
@@ -121,12 +121,61 @@ local lastDamageSource = nil
 local lastDamageTime = 0
 local DAMAGE_MEMORY_TIME = 3 -- сколько секунд помнить кто нанёс последний урон
 
+--------- === ДЕТЕКТОР НОВЫХ ОБЪЕКТОВ (ДЛЯ ПОИСКА НАЗВАНИЙ) === ---------
+local function setupObjectLogger()
+	workspace.DescendantAdded:Connect(function(obj)
+		-- Пропускаем игроков и части игрока
+		if obj:IsA("Player") or (player.Character and obj:IsDescendantOf(player.Character)) then
+			return
+		end
+		
+		-- Логируем только интересные типы объектов
+		local shouldLog = false
+		local objType = ""
+		
+		if obj:IsA("BillboardGui") then
+			shouldLog = true
+			objType = "🖼️ BILLBOARD"
+		elseif obj:IsA("Model") then
+			shouldLog = true
+			objType = "📦 MODEL"
+		elseif obj:IsA("BasePart") or obj:IsA("MeshPart") then
+			shouldLog = true
+			objType = "🧱 PART"
+		elseif obj:IsA("Tool") then
+			shouldLog = true
+			objType = "🔧 TOOL"
+		end
+		
+		if shouldLog then
+			local fullPath = ""
+			pcall(function()
+				fullPath = obj:GetFullName()
+			end)
+			
+			print(string.format("[НОВЫЙ ОБЪЕКТ] %s | Имя: %s | Класс: %s | Путь: %s", 
+				objType, 
+				obj.Name, 
+				obj.ClassName, 
+				fullPath))
+			
+			-- Особо отмечаем BillboardGui (картинки)
+			if obj:IsA("BillboardGui") then
+				print("   → 🖼️ НАЙДЕН BILLBOARD! Возможно это монстр!")
+				-- Проверяем текст внутри
+				for _, child in pairs(obj:GetChildren()) do
+					if child:IsA("TextLabel") then
+						print("   → Текст в Billboard: " .. child.Text)
+					end
+				end
+			end
+		end
+	end)
+end
+
 --------- Таблицы с названиями предметов
 local itemNames = {
-	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
-	"Switch", "Lever", "Artifact", "Scroll", "Potion", "Health", 
-	"Medkit", "Bandage", "Ammo", "Weapon", "Gun", "Sword", "Axe",
-	"Tool", "Hammer", "Part", "Flashlight", "Lantern", "Torch", "Light"
+	"Bandage","Axe","Flashlight",
 }
 
 local coinNames = {
@@ -136,9 +185,9 @@ local coinNames = {
 
 --------- === МОНСТРЫ === ---------
 local monsterDefinitions = {
-	-- ТОЛЬКО РАШ (Rush) - с большой буквы в displayName
+	-- РАШ (Rush)
 	{
-		keywords = {"Rush", "раш"},
+		keywords = {"rush", "раш"},
 		displayName = "⚠️ RUSH ⚠️",
 		color = Color3.fromRGB(255, 0, 0),
 		dangerous = true
@@ -153,7 +202,7 @@ local monsterDefinitions = {
 	}
 }
 
---------- Функция определения монстра
+--------- Функция определения монстра по имени
 local function identifyMonster(obj)
 	local objName = obj.Name:lower()
 	
@@ -179,53 +228,56 @@ local function identifyMonster(obj)
 	return nil, nil, false
 end
 
---------- Функция поиска Nextbot'ов (Раша)
-local function findNextbots()
+--------- Функция поиска движущихся BillboardGui (настоящие монстры)
+local function findMovingBillboards()
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BillboardGui") and not processedObjects[obj] then
 			local parent = obj.Parent
-			if parent and parent:IsA("Model") and not processedObjects[parent] then
-				local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
-								 parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
+			if parent and (parent:IsA("Model") or parent:IsA("BasePart") or parent:IsA("MeshPart")) and not processedObjects[parent] then
+				
+				local rootPart = parent
+				if parent:IsA("Model") then
+					rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
+							  parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
+				end
+				
 				if rootPart then
-					createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
-					
-					for _, esp in pairs(espObjects) do
-						if esp.obj == parent then
-							esp.isDangerous = true
-							break
-						end
+					-- Проверяем, двигается ли объект
+					local isMoving = false
+					if rootPart.Velocity and rootPart.Velocity.Magnitude > 0.5 then
+						isMoving = true
 					end
 					
-					found = found + 1
-				end
-			end
-		end
-		
-		if obj:IsA("Model") and not processedObjects[obj] then
-			local hasBillboard = false
-			for _, child in pairs(obj:GetDescendants()) do
-				if child:IsA("BillboardGui") then
-					hasBillboard = true
-					break
-				end
-			end
-			
-			if hasBillboard then
-				local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
-								 obj:FindFirstChild("Torso") or obj:FindFirstChild("Head")
-				if rootPart then
-					createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
-					
-					for _, esp in pairs(espObjects) do
-						if esp.obj == obj then
-							esp.isDangerous = true
-							break
+					-- Если двигается - это монстр!
+					if isMoving then
+						-- Получаем текст из BillboardGui если есть
+						local text = ""
+						for _, child in pairs(obj:GetChildren()) do
+							if child:IsA("TextLabel") then
+								text = child.Text
+								break
+							end
 						end
+						
+						local displayName = "⚠️ MOVING MONSTER ⚠️"
+						if text ~= "" then
+							displayName = "⚠️ " .. text .. " ⚠️"
+						end
+						
+						createESP(rootPart, Color3.fromRGB(255, 0, 0), displayName)
+						
+						-- Отмечаем как опасного
+						for _, esp in pairs(espObjects) do
+							if esp.obj == rootPart then
+								esp.isDangerous = true
+								break
+							end
+						end
+						
+						found = found + 1
+						print("🔍 НАЙДЕН ДВИЖУЩИЙСЯ BILLBOARD! Текст:", text, "Скорость:", math.floor(rootPart.Velocity.Magnitude))
 					end
-					
-					found = found + 1
 				end
 			end
 		end
@@ -239,7 +291,6 @@ local function findDoors()
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if not processedObjects[obj] then
 			local objName = obj.Name:lower()
-			-- Ищем только точные названия
 			if objName == "doors" or objName == "door" or objName == "дверь" or objName == "двери" then
 				if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
 					local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
@@ -276,7 +327,7 @@ local function createWarning()
 	warningLabel.Parent = warningFrame
 	warningLabel.Size = UDim2.new(1, 0, 1, 0)
 	warningLabel.BackgroundTransparency = 1
-	warningLabel.Text = "⚠️ RUSH РЯДОМ! ⚠️"
+	warningLabel.Text = "⚠️ МОНСТР РЯДОМ! ⚠️"
 	warningLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	warningLabel.TextSize = 20
 	warningLabel.Font = Enum.Font.GothamBold
@@ -424,7 +475,7 @@ local function createESP(obj, color, customText)
 	processedObjects[obj] = true
 end
 
---------- Функция проверки ближайших монстров при получении урона (ИСПРАВЛЕННАЯ)
+--------- Функция проверки ближайших монстров при получении урона
 local function checkNearbyMonsters()
 	local character = player.Character
 	if not character then return end
@@ -432,7 +483,7 @@ local function checkNearbyMonsters()
 	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
 	if not rootPart then return end
 	
-	-- Сначала проверяем BillboardGui (это 100% Раш)
+	-- Сначала проверяем движущиеся BillboardGui (это монстры)
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BillboardGui") then
 			local parent = obj.Parent
@@ -441,23 +492,32 @@ local function checkNearbyMonsters()
 								  parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
 				if parentRoot then
 					local distance = (rootPart.Position - parentRoot.Position).Magnitude
-					if distance < 20 then
-						-- Это Раш, игнорируем всё остальное!
+					if distance < 20 and parentRoot.Velocity and parentRoot.Velocity.Magnitude > 0.5 then
+						-- Это движущийся монстр!
+						local text = ""
+						for _, child in pairs(obj:GetChildren()) do
+							if child:IsA("TextLabel") then
+								text = child.Text
+								break
+							end
+						end
+						
+						local name = text ~= "" and text or "МОНСТР"
 						lastDamageSource = {
-							name = "⚠️ RUSH ⚠️",
+							name = "⚠️ " .. name .. " ⚠️",
 							distance = distance,
 							time = tick()
 						}
 						lastDamageTime = tick()
-						print("🔍 РАШ АТАКУЕТ! Дистанция:", math.floor(distance))
-						return -- Выходим сразу, не проверяем другие объекты
+						print("🔍 МОНСТР АТАКУЕТ! Имя:", name, "Дистанция:", math.floor(distance))
+						return
 					end
 				end
 			end
 		end
 	end
 	
-	-- Если Раш не найден, проверяем других опасных монстров
+	-- Если монстр не найден, проверяем других опасных существ
 	local closestMonster = nil
 	local closestDistance = 15
 	local closestName = "Неизвестно"
@@ -492,14 +552,12 @@ local function setupDeathDetector()
 	local humanoid = character:FindFirstChild("Humanoid")
 	if not humanoid then return end
 	
-	-- Отслеживаем получение урона
 	humanoid:GetPropertyChangedSignal("Health"):Connect(function()
 		if humanoid.Health < (humanoid.MaxHealth or 100) then
 			checkNearbyMonsters()
 		end
 	end)
 	
-	-- Отслеживаем смерть
 	humanoid.Died:Connect(function()
 		wait(0.1)
 		
@@ -515,7 +573,6 @@ local function setupDeathDetector()
 	end)
 end
 
--- Запускаем детектор при появлении персонажа
 player.CharacterAdded:Connect(function(newChar)
 	wait(0.5)
 	setupDeathDetector()
@@ -604,8 +661,8 @@ local function updateESP()
 	end
 end
 
---------- Функция поиска обычных монстров
-local function findMonsters()
+--------- Функция поиска обычных монстров по имени
+local function findMonstersByName()
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("Model") and not obj:IsA("Player") and obj ~= player.Character and not processedObjects[obj] then
@@ -818,10 +875,10 @@ local function toggleESP(type)
 			MonstersSlider.BackgroundColor3 = theme.Accent
 			MonstersSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 			spawn(function()
-				local found1 = findMonsters()
-				local found2 = findNextbots()
+				local found1 = findMonstersByName()
+				local found2 = findMovingBillboards()
 				if found1 + found2 > 0 then 
-					print("👹 Монстров ESP найдено:", found1 + found2, "(Nextbot'ов:", found2, ")") 
+					print("👹 Монстров ESP найдено:", found1 + found2, "(Движущихся картинок:", found2, ")") 
 				end
 			end)
 		end
@@ -944,38 +1001,33 @@ local function setupObjectMonitor()
 						
 						if obj:IsA("BillboardGui") then
 							local parent = obj.Parent
-							if parent and parent:IsA("Model") and not processedObjects[parent] then
-								local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart")
-								if rootPart then
-									createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
-									for _, esp in pairs(espObjects) do
-										if esp.obj == parent then
-											esp.isDangerous = true
-											break
-										end
-									end
+							if parent and (parent:IsA("Model") or parent:IsA("BasePart")) and not processedObjects[parent] then
+								local rootPart = parent
+								if parent:IsA("Model") then
+									rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart")
 								end
-							end
-						end
-						
-						if obj:IsA("Model") then
-							local hasBillboard = false
-							for _, child in pairs(obj:GetDescendants()) do
-								if child:IsA("BillboardGui") then
-									hasBillboard = true
-									break
-								end
-							end
-							if hasBillboard and not processedObjects[obj] then
-								local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart")
 								if rootPart then
-									createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ RUSH ⚠️")
-									for _, esp in pairs(espObjects) do
-										if esp.obj == obj then
-											esp.isDangerous = true
-											break
+									-- Проверяем движение
+									spawn(function()
+										wait(0.5)
+										if rootPart.Velocity and rootPart.Velocity.Magnitude > 0.5 then
+											local text = ""
+											for _, child in pairs(obj:GetChildren()) do
+												if child:IsA("TextLabel") then
+													text = child.Text
+													break
+												end
+											end
+											local displayName = "⚠️ " .. (text ~= "" and text or "MOVING") .. " ⚠️"
+											createESP(rootPart, Color3.fromRGB(255, 0, 0), displayName)
+											for _, esp in pairs(espObjects) do
+												if esp.obj == rootPart then
+													esp.isDangerous = true
+													break
+												end
+											end
 										end
-									end
+									end)
 								end
 							end
 						end
@@ -1059,9 +1111,9 @@ UICorner9.Parent = dragButton
 UICorner9.CornerRadius = UDim.new(0, 2)
 makeDraggable(frame1Lobby, dragButton)
 
-------------- ГЛАВНОЕ МЕНЮ (увеличено для новой кнопки)
-frame2menu.Size = UDim2.new(0, 200, 0, 440) -- Было 400, стало 440
-frame2menu.Position = UDim2.new(0.5, -100, 0.5, -220)
+------------- ГЛАВНОЕ МЕНЮ
+frame2menu.Size = UDim2.new(0, 200, 0, 400)
+frame2menu.Position = UDim2.new(0.5, -100, 0.5, -200)
 frame2menu.BackgroundColor3 = theme.Background
 UIStroke2.Parent = frame2menu
 UIStroke2.Thickness = 1
@@ -1253,7 +1305,7 @@ MonstersSlider.Font = Enum.Font.Gotham
 UICorner12.Parent = MonstersSlider
 UICorner12.CornerRadius = UDim.new(0, 4)
 
-------------- DOORS ESP (НОВАЯ КНОПКА)
+------------- DOORS ESP
 textDoors.Parent = frame2menu
 textDoors.Size = UDim2.new(1, -20, 0, 20)
 textDoors.Position = UDim2.new(0, 10, 0, 280)
@@ -1368,6 +1420,7 @@ NoclipSlider.MouseButton1Click:Connect(function()
 end)
 
 setupObjectMonitor()
+setupObjectLogger()
 game:GetService("RunService").RenderStepped:Connect(updateESP)
 game:GetService("RunService").Heartbeat:Connect(noclipLoop)
 
@@ -1382,7 +1435,7 @@ spawn(function()
 end)
 
 print("✅ Меню загружено!")
-print("👹 MONSTER ESP - только RUSH и ARTUR")
-print("⚠️ RUSH - ярко-красный цвет + предупреждение")
+print("👹 MONSTER ESP - ищет монстров по имени и движущиеся картинки")
 print("🚪 DOORS ESP - отдельная кнопка для дверей")
 print("💀 DETECTOR - показывает кто убил")
+print("📝 LOGGER - все новые объекты пишутся в консоль")
