@@ -105,19 +105,30 @@ local espObjects = {}
 local processedObjects = {}
 local lastWarningTime = 0
 
+--------- Таблицы с названиями предметов
+local itemNames = {
+	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
+	"Switch", "Lever", "Artifact", "Scroll", "Potion", "Health", 
+	"Medkit", "Bandage", "Ammo", "Weapon", "Gun", "Sword", "Axe",
+	"Tool", "Hammer", "Part", "Flashlight", "Lantern", "Torch", "Light"
+}
+
+local coinNames = {
+	"Coin", "Coins", "Money", "Cash", "Gold", "Gem", "Gems",
+	"Crystal", "Crystals", "Token", "Tokens", "Dollar", "Ruby", "Diamond"
+}
+
 --------- === МОНСТРЫ (ОПТИМИЗИРОВАННАЯ СИСТЕМА) === ---------
--- Таблицы с названиями монстров и объектов (РАЗДЕЛЬНО)
--- Таблицы с названиями монстров и объектов (ПОЛНАЯ ВЕРСИЯ)
 local monsterDefinitions = {
-	-- Раш-Друн (главный враг) - также срабатывает на vent и tancpol
+	-- Раш-Друн (nextbot)
 	{
 		keywords = {"раш", "друн", "rush", "drown", "vent", "tancpol"},
-		displayName = "⚠️ РАШ-ДРУН ⚠️",
+		displayName = "⚠️ NEXTBOT (РАШ) ⚠️",
 		color = Color3.fromRGB(255, 0, 0),
 		dangerous = true
 	},
 	
-	-- Стена плоти (реальный босс) - также срабатывает на RoomWood
+	-- Стена плоти
 	{
 		keywords = {"стена", "плоть", "wall", "flesh", "roomwood", "wood"},
 		displayName = "🧱 СТЕНА ПЛОТИ",
@@ -125,16 +136,15 @@ local monsterDefinitions = {
 		dangerous = true
 	},
 	
-	-- Фог - срабатывает на TrainFloor (появляется если бежать назад)
+	-- Фог (появляется если бежать назад)
 	{
 		keywords = {"фог", "fog", "туман", "trainfloor", "train"},
 		displayName = "👻 ФОГ",
 		color = Color3.fromRGB(150, 150, 150),
-		dangerous = false,
-		note = "Появляется если бежать в обратную сторону"
+		dangerous = false
 	},
 	
-	-- Артур (Artur)
+	-- Артур
 	{
 		keywords = {"артур", "arthur", "artur"},
 		displayName = "👑 АРТУР",
@@ -183,11 +193,10 @@ local monsterDefinitions = {
 	}
 }
 
---------- Функция определения монстра (ОДНА ПРОВЕРКА!)
+--------- Функция определения монстра
 local function identifyMonster(obj)
 	local objName = obj.Name:lower()
 	
-	-- Проверяем основное имя (одна итерация по всем ключевым словам)
 	for _, monster in ipairs(monsterDefinitions) do
 		for _, keyword in ipairs(monster.keywords) do
 			if objName:find(keyword, 1, true) then
@@ -196,7 +205,6 @@ local function identifyMonster(obj)
 		end
 	end
 	
-	-- Если не нашли, проверяем детей
 	for _, child in pairs(obj:GetDescendants()) do
 		local childName = child.Name:lower()
 		for _, monster in ipairs(monsterDefinitions) do
@@ -209,6 +217,62 @@ local function identifyMonster(obj)
 	end
 	
 	return nil, nil, false
+end
+
+--------- Функция поиска Nextbot'ов (Раша)
+local function findNextbots()
+	local found = 0
+	for _, obj in pairs(workspace:GetDescendants()) do
+		-- Проверяем BillboardGui (сама картинка)
+		if obj:IsA("BillboardGui") and not processedObjects[obj] then
+			local parent = obj.Parent
+			if parent and parent:IsA("Model") and not processedObjects[parent] then
+				local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
+								 parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
+				if rootPart then
+					createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+					
+					for _, esp in pairs(espObjects) do
+						if esp.obj == parent then
+							esp.isDangerous = true
+							break
+						end
+					end
+					
+					found = found + 1
+				end
+			end
+		end
+		
+		-- Проверяем модели, у которых есть BillboardGui
+		if obj:IsA("Model") and not processedObjects[obj] then
+			local hasBillboard = false
+			for _, child in pairs(obj:GetDescendants()) do
+				if child:IsA("BillboardGui") then
+					hasBillboard = true
+					break
+				end
+			end
+			
+			if hasBillboard then
+				local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or 
+								 obj:FindFirstChild("Torso") or obj:FindFirstChild("Head")
+				if rootPart then
+					createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+					
+					for _, esp in pairs(espObjects) do
+						if esp.obj == obj then
+							esp.isDangerous = true
+							break
+						end
+					end
+					
+					found = found + 1
+				end
+			end
+		end
+	end
+	return found
 end
 
 --------- Функция создания предупреждения
@@ -232,7 +296,7 @@ local function createWarning()
 	warningLabel.Parent = warningFrame
 	warningLabel.Size = UDim2.new(1, 0, 1, 0)
 	warningLabel.BackgroundTransparency = 1
-	warningLabel.Text = "⚠️ РАШ-ДРУН РЯДОМ! ⚠️"
+	warningLabel.Text = "⚠️ NEXTBOT РЯДОМ! ⚠️"
 	warningLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	warningLabel.TextSize = 20
 	warningLabel.Font = Enum.Font.GothamBold
@@ -254,19 +318,6 @@ local function showWarning(monsterName, distance)
 		warningFrame.Visible = false
 	end)
 end
-
---------- Таблицы для предметов и монет
-local itemNames = {
-	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
-	"Switch", "Lever", "Artifact", "Scroll", "Potion", "Health", 
-	"Medkit", "Bandage", "Ammo", "Weapon", "Gun", "Sword", "Axe",
-	"Tool", "Hammer", "Part", "Flashlight", "Lantern", "Torch", "Light"
-}
-
-local coinNames = {
-	"Coin", "Coins", "Money", "Cash", "Gold", "Gem", "Gems",
-	"Crystal", "Crystals", "Token", "Tokens", "Dollar", "Ruby", "Diamond"
-}
 
 --------- Функция создания ESP
 local function createESP(obj, color, customText)
@@ -377,7 +428,6 @@ local function updateESP()
 			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
 			esp.infoLabel.Text = (esp.customText or "") .. " | " .. math.floor(distance) .. "m"
 			
-			-- Проверяем опасных монстров
 			if esp.isDangerous and distance < 50 then
 				if distance < closestDistance then
 					closestDistance = distance
@@ -420,13 +470,11 @@ local function updateESP()
 		end
 	end
 	
-	-- Показываем предупреждение
 	if closestMonster and currentTime - lastWarningTime > 2 then
 		lastWarningTime = currentTime
 		showWarning(closestMonsterName, closestDistance)
 	end
 	
-	-- Очистка
 	for i = #espObjects, 1, -1 do
 		if not espObjects[i].billboard or not espObjects[i].billboard.Parent then
 			if espObjects[i].tracer then espObjects[i].tracer:Destroy() end
@@ -435,7 +483,7 @@ local function updateESP()
 	end
 end
 
---------- Функция поиска монстров
+--------- Функция поиска обычных монстров
 local function findMonsters()
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
@@ -448,7 +496,6 @@ local function findMonsters()
 				if rootPart then
 					createESP(obj, color, displayName)
 					
-					-- Отмечаем опасных монстров
 					for _, esp in pairs(espObjects) do
 						if esp.obj == obj then
 							esp.isDangerous = dangerous
@@ -628,8 +675,11 @@ local function toggleESP(type)
 			MonstersSlider.BackgroundColor3 = theme.Accent
 			MonstersSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 			spawn(function()
-				local found = findMonsters()
-				if found > 0 then print("👹 Монстров ESP найдено:", found) end
+				local found1 = findMonsters()
+				local found2 = findNextbots()
+				if found1 + found2 > 0 then 
+					print("👹 Монстров ESP найдено:", found1 + found2, "(Nextbot'ов:", found2, ")") 
+				end
 			end)
 		end
 	end
@@ -732,16 +782,57 @@ local function setupObjectMonitor()
 						end
 					end
 					
-					if espEnabled.Monsters and not processedObjects[obj] and obj:IsA("Model") then
-						local displayName, color, dangerous = identifyMonster(obj)
-						if displayName then
-							local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj.PrimaryPart
-							if rootPart then
-								createESP(obj, color, displayName)
-								for _, esp in pairs(espObjects) do
-									if esp.obj == obj then
-										esp.isDangerous = dangerous
-										break
+					if espEnabled.Monsters and not processedObjects[obj] then
+						if obj:IsA("Model") then
+							local displayName, color, dangerous = identifyMonster(obj)
+							if displayName then
+								local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj.PrimaryPart
+								if rootPart then
+									createESP(obj, color, displayName)
+									for _, esp in pairs(espObjects) do
+										if esp.obj == obj then
+											esp.isDangerous = dangerous
+											break
+										end
+									end
+								end
+							end
+						end
+						
+						-- Проверяем на Nextbot'ов
+						if obj:IsA("BillboardGui") then
+							local parent = obj.Parent
+							if parent and parent:IsA("Model") and not processedObjects[parent] then
+								local rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart")
+								if rootPart then
+									createESP(parent, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+									for _, esp in pairs(espObjects) do
+										if esp.obj == parent then
+											esp.isDangerous = true
+											break
+										end
+									end
+								end
+							end
+						end
+						
+						if obj:IsA("Model") then
+							local hasBillboard = false
+							for _, child in pairs(obj:GetDescendants()) do
+								if child:IsA("BillboardGui") then
+									hasBillboard = true
+									break
+								end
+							end
+							if hasBillboard and not processedObjects[obj] then
+								local rootPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart")
+								if rootPart then
+									createESP(obj, Color3.fromRGB(255, 0, 0), "⚠️ NEXTBOT (РАШ) ⚠️")
+									for _, esp in pairs(espObjects) do
+										if esp.obj == obj then
+											esp.isDangerous = true
+											break
+										end
 									end
 								end
 							end
@@ -1111,4 +1202,4 @@ end)
 
 print("✅ Меню загружено!")
 print("👹 MONSTER ESP - монстры подсвечиваются")
-print("⚠️ РАШ-ДРУН - красный цвет + предупреждение")
+print("⚠️ NEXTBOT (РАШ) - ярко-красный цвет + предупреждение")
