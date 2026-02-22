@@ -71,6 +71,12 @@ local warningLabel = Instance.new("TextLabel")
 local warningCorner = Instance.new("UICorner")
 local warningStroke = Instance.new("UIStroke")
 
+-- Сообщение о смерти
+local deathFrame = Instance.new("Frame")
+local deathLabel = Instance.new("TextLabel")
+local deathCorner = Instance.new("UICorner")
+local deathStroke = Instance.new("UIStroke")
+
 local player = game.Players.LocalPlayer
 local light = Instance.new("PointLight")
 light.Enabled = false
@@ -105,6 +111,11 @@ local espObjects = {}
 local processedObjects = {}
 local lastWarningTime = 0
 
+--------- === СИСТЕМА ОПРЕДЕЛЕНИЯ КТО УБИЛ === ---------
+local lastDamageSource = nil
+local lastDamageTime = 0
+local DAMAGE_MEMORY_TIME = 3 -- сколько секунд помнить кто нанёс последний урон
+
 --------- Таблицы с названиями предметов
 local itemNames = {
 	"Key", "Keys", "Chest", "Crate", "Door", "Gate", "Button", 
@@ -118,7 +129,7 @@ local coinNames = {
 	"Crystal", "Crystals", "Token", "Tokens", "Dollar", "Ruby", "Diamond"
 }
 
---------- === МОНСТРЫ (ОПТИМИЗИРОВАННАЯ СИСТЕМА) === ---------
+--------- === МОНСТРЫ === ---------
 local monsterDefinitions = {
 	-- Раш-Друн (nextbot)
 	{
@@ -223,7 +234,6 @@ end
 local function findNextbots()
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
-		-- Проверяем BillboardGui (сама картинка)
 		if obj:IsA("BillboardGui") and not processedObjects[obj] then
 			local parent = obj.Parent
 			if parent and parent:IsA("Model") and not processedObjects[parent] then
@@ -244,7 +254,6 @@ local function findNextbots()
 			end
 		end
 		
-		-- Проверяем модели, у которых есть BillboardGui
 		if obj:IsA("Model") and not processedObjects[obj] then
 			local hasBillboard = false
 			for _, child in pairs(obj:GetDescendants()) do
@@ -303,7 +312,36 @@ local function createWarning()
 	warningLabel.TextScaled = true
 end
 
+--------- Функция создания сообщения о смерти
+local function createDeathMessage()
+	deathFrame.Name = "DeathMessage"
+	deathFrame.Parent = screen
+	deathFrame.Size = UDim2.new(0, 400, 0, 80)
+	deathFrame.Position = UDim2.new(0.5, -200, 0.4, -40)
+	deathFrame.BackgroundColor3 = theme.Danger
+	deathFrame.BackgroundTransparency = 0.1
+	deathFrame.Visible = false
+	deathFrame.ZIndex = 1000
+	
+	deathCorner.CornerRadius = UDim.new(0, 8)
+	deathCorner.Parent = deathFrame
+	
+	deathStroke.Thickness = 3
+	deathStroke.Color = Color3.fromRGB(255, 255, 255)
+	deathStroke.Parent = deathFrame
+	
+	deathLabel.Parent = deathFrame
+	deathLabel.Size = UDim2.new(1, 0, 1, 0)
+	deathLabel.BackgroundTransparency = 1
+	deathLabel.Text = "💀 ТЕБЯ УБИЛ: НЕИЗВЕСТНО 💀"
+	deathLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	deathLabel.TextSize = 24
+	deathLabel.Font = Enum.Font.GothamBold
+	deathLabel.TextScaled = true
+end
+
 createWarning()
+createDeathMessage()
 
 --------- Функция показа предупреждения
 local function showWarning(monsterName, distance)
@@ -316,6 +354,17 @@ local function showWarning(monsterName, distance)
 			wait(0.1)
 		end
 		warningFrame.Visible = false
+	end)
+end
+
+--------- Функция показа сообщения о смерти
+local function showDeathMessage(killerName)
+	deathLabel.Text = "💀 ТЕБЯ УБИЛ: " .. killerName .. " 💀"
+	deathFrame.Visible = true
+	
+	spawn(function()
+		wait(3)
+		deathFrame.Visible = false
 	end)
 end
 
@@ -402,6 +451,100 @@ local function createESP(obj, color, customText)
 	})
 	
 	processedObjects[obj] = true
+end
+
+--------- Функция проверки ближайших монстров при получении урона
+local function checkNearbyMonsters()
+	local character = player.Character
+	if not character then return end
+	
+	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
+	if not rootPart then return end
+	
+	local closestMonster = nil
+	local closestDistance = 15 -- Радиус поиска
+	local closestName = "Неизвестно"
+	
+	-- Проверяем всех подсвеченных монстров
+	for _, esp in pairs(espObjects) do
+		if esp.isDangerous and esp.rootPart and esp.rootPart.Parent then
+			local distance = (rootPart.Position - esp.rootPart.Position).Magnitude
+			
+			if distance < closestDistance then
+				closestDistance = distance
+				closestMonster = esp
+				closestName = esp.customText or "Монстр"
+			end
+		end
+	end
+	
+	-- Проверяем Nextbot'ов отдельно
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("BillboardGui") then
+			local parent = obj.Parent
+			if parent and parent:IsA("Model") then
+				local parentRoot = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
+								  parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
+				if parentRoot then
+					local distance = (rootPart.Position - parentRoot.Position).Magnitude
+					if distance < closestDistance then
+						closestDistance = distance
+						closestName = "⚠️ NEXTBOT (РАШ) ⚠️"
+					end
+				end
+			end
+		end
+	end
+	
+	if closestMonster or closestName ~= "Неизвестно" then
+		lastDamageSource = {
+			name = closestName,
+			distance = closestDistance,
+			time = tick()
+		}
+		lastDamageTime = tick()
+	end
+end
+
+--------- Функция настройки детектора смерти
+local function setupDeathDetector()
+	local character = player.Character
+	if not character then return end
+	
+	local humanoid = character:FindFirstChild("Humanoid")
+	if not humanoid then return end
+	
+	-- Отслеживаем получение урона
+	humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+		if humanoid.Health < (humanoid.MaxHealth or 100) then
+			checkNearbyMonsters()
+		end
+	end)
+	
+	-- Отслеживаем смерть
+	humanoid.Died:Connect(function()
+		wait(0.1)
+		
+		if lastDamageSource and (tick() - lastDamageTime) <= DAMAGE_MEMORY_TIME then
+			showDeathMessage(lastDamageSource.name)
+			print("💀 ТЕБЯ УБИЛ: " .. lastDamageSource.name .. " (дистанция: " .. math.floor(lastDamageSource.distance) .. "m)")
+		else
+			showDeathMessage("НЕИЗВЕСТНО (падение/лава)")
+			print("💀 Ты умер от неизвестной причины")
+		end
+		
+		lastDamageSource = nil
+	end)
+end
+
+-- Запускаем детектор при появлении персонажа
+player.CharacterAdded:Connect(function(newChar)
+	wait(0.5)
+	setupDeathDetector()
+end)
+
+if player.Character then
+	setupDeathDetector()
 end
 
 --------- Функция обновления ESP
@@ -799,7 +942,6 @@ local function setupObjectMonitor()
 							end
 						end
 						
-						-- Проверяем на Nextbot'ов
 						if obj:IsA("BillboardGui") then
 							local parent = obj.Parent
 							if parent and parent:IsA("Model") and not processedObjects[parent] then
@@ -1203,3 +1345,4 @@ end)
 print("✅ Меню загружено!")
 print("👹 MONSTER ESP - монстры подсвечиваются")
 print("⚠️ NEXTBOT (РАШ) - ярко-красный цвет + предупреждение")
+print("💀 DETECTOR - показывает кто убил")
