@@ -16,6 +16,7 @@ local theme = {
 	Accent = Color3.fromRGB(70, 130, 255),
 	Danger = Color3.fromRGB(255, 50, 50),
 	Warning = Color3.fromRGB(255, 150, 0),
+	Admin = Color3.fromRGB(255, 215, 0), -- Золотой для админки
 }
 
 local frame1Lobby = Instance.new("TextButton")
@@ -37,6 +38,7 @@ local UICorner10 = Instance.new("UICorner")
 local UICorner11 = Instance.new("UICorner")
 local UICorner12 = Instance.new("UICorner")
 local UICorner13 = Instance.new("UICorner")
+local UICorner14 = Instance.new("UICorner") -- Для ADMIN кнопки
 
 -- Обводки
 local UIStroke1 = Instance.new("UIStroke")
@@ -48,6 +50,7 @@ local UIStroke6 = Instance.new("UIStroke")
 local UIStroke7 = Instance.new("UIStroke")
 local UIStroke8 = Instance.new("UIStroke")
 local UIStroke9 = Instance.new("UIStroke")
+local UIStroke10 = Instance.new("UIStroke") -- Для ADMIN кнопки
 
 local Exit = Instance.new("TextButton")
 local EpSlider = Instance.new("TextButton")
@@ -57,6 +60,7 @@ local InteractSlider = Instance.new("TextButton")
 local NoclipSlider = Instance.new("TextButton")
 local MonstersSlider = Instance.new("TextButton")
 local DoorsSlider = Instance.new("TextButton")
+local AdminSlider = Instance.new("TextButton") -- Новая кнопка для админки
 
 local textSpeed = Instance.new("TextLabel")
 local textNightVision = Instance.new("TextLabel")
@@ -66,6 +70,7 @@ local textInteract = Instance.new("TextLabel")
 local textNoclip = Instance.new("TextLabel")
 local textMonsters = Instance.new("TextLabel")
 local textDoors = Instance.new("TextLabel")
+local textAdmin = Instance.new("TextLabel") -- Новый текст для админки
 
 local TextBox = Instance.new("TextBox")
 
@@ -95,6 +100,10 @@ local dragInput
 local dragStart
 local startPos
 
+--------- Переменная для админки
+local adminGui = player.PlayerGui:FindFirstChild("AdminGui")
+local adminEnabled = false
+
 --------- base
 
 frame1Lobby.Parent = screen
@@ -119,17 +128,15 @@ local lastWarningTime = 0
 --------- === СИСТЕМА ОПРЕДЕЛЕНИЯ КТО УБИЛ === ---------
 local lastDamageSource = nil
 local lastDamageTime = 0
-local DAMAGE_MEMORY_TIME = 3 -- сколько секунд помнить кто нанёс последний урон
+local DAMAGE_MEMORY_TIME = 3
 
---------- === ДЕТЕКТОР НОВЫХ ОБЪЕКТОВ (ДЛЯ ПОИСКА НАЗВАНИЙ) === ---------
+--------- === ДЕТЕКТОР НОВЫХ ОБЪЕКТОВ === ---------
 local function setupObjectLogger()
 	workspace.DescendantAdded:Connect(function(obj)
-		-- Пропускаем игроков и части игрока
 		if obj:IsA("Player") or (player.Character and obj:IsDescendantOf(player.Character)) then
 			return
 		end
 		
-		-- Логируем только интересные типы объектов
 		local shouldLog = false
 		local objType = ""
 		
@@ -142,9 +149,6 @@ local function setupObjectLogger()
 		elseif obj:IsA("BasePart") or obj:IsA("MeshPart") then
 			shouldLog = true
 			objType = "🧱 PART"
-		elseif obj:IsA("Tool") then
-			shouldLog = true
-			objType = "🔧 TOOL"
 		end
 		
 		if shouldLog then
@@ -159,10 +163,8 @@ local function setupObjectLogger()
 				obj.ClassName, 
 				fullPath))
 			
-			-- Особо отмечаем BillboardGui (картинки)
 			if obj:IsA("BillboardGui") then
 				print("   → 🖼️ НАЙДЕН BILLBOARD! Возможно это монстр!")
-				-- Проверяем текст внутри
 				for _, child in pairs(obj:GetChildren()) do
 					if child:IsA("TextLabel") then
 						print("   → Текст в Billboard: " .. child.Text)
@@ -175,7 +177,9 @@ end
 
 --------- Таблицы с названиями предметов
 local itemNames = {
-	"Bandage","Axe","Flashlight",
+	"Bandage", "Axe", "Flashlight", "Key", "Keys", "Chest", "Crate", 
+	"Medkit", "Health", "Potion", "Ammo", "Weapon", "Gun", "Sword",
+	"Tool", "Hammer", "Part", "Lantern", "Torch", "Light"
 }
 
 local coinNames = {
@@ -202,8 +206,75 @@ local monsterDefinitions = {
 	}
 }
 
---------- Функция определения монстра по имени
+--------- === ИСКЛЮЧЕНИЯ (ЧТО НЕ ЯВЛЯЕТСЯ МОНСТРАМИ) === ---------
+local rushExceptions = {
+	-- Комнаты с поездами
+	"train", "Train", "TRAIN",
+	"trainfloor", "TrainFloor", "TRAINFLOOR",
+	"rail", "rails", "Rail", "Rails",
+	"track", "tracks", "Track", "Tracks",
+	"locomotive", "Locomotive",
+	"wagon", "Wagon", "carriage", "Carriage",
+	
+	-- Вентиляция
+	"vent", "Vent", "VENT",
+	
+	-- Разные комнаты
+	"tancpol", "Tancpol", "TANCPOL",
+	"RoomWood", "roomwood", "ROOMWOOD",
+	"RoomRight", "roomright", "ROOMRIGHT",
+	"palka", "Palka", "PALKA",
+	
+	-- Пути и маршруты
+	"RushPath", "rushpath", "RUSHPATH",
+	"Path", "path", "PATH",
+	
+	-- Двери
+	"doors", "Doors", "DOORS",
+	"door", "Door", "DOOR",
+	"дверь", "Дверь",
+	"двери", "Двери",
+	
+	-- Этажи
+	"Floor", "floor", "FLOOR",
+	"Floor4", "Floor5", "Floor6", "Floor7", "Floor8", "Floor9", "Floor10",
+	"SkyFloor", "skyfloor", "SKYFLOOR",
+	
+	-- Разные объекты
+	"Model", "model", "MODEL",
+	"Map", "map", "MAP",
+}
+
+--------- Функция проверки исключений
+local function isException(obj)
+	local objName = obj.Name:lower()
+	
+	for _, exception in ipairs(rushExceptions) do
+		local exLower = exception:lower()
+		if objName == exLower or objName:find(exLower, 1, true) then
+			return true
+		end
+	end
+	
+	if obj.Parent then
+		local parentName = obj.Parent.Name:lower()
+		for _, exception in ipairs(rushExceptions) do
+			local exLower = exception:lower()
+			if parentName == exLower or parentName:find(exLower, 1, true) then
+				return true
+			end
+		end
+	end
+	
+	return false
+end
+
+--------- Функция определения монстра (с проверкой исключений)
 local function identifyMonster(obj)
+	if isException(obj) then
+		return nil, nil, false
+	end
+	
 	local objName = obj.Name:lower()
 	
 	for _, monster in ipairs(monsterDefinitions) do
@@ -215,11 +286,13 @@ local function identifyMonster(obj)
 	end
 	
 	for _, child in pairs(obj:GetDescendants()) do
-		local childName = child.Name:lower()
-		for _, monster in ipairs(monsterDefinitions) do
-			for _, keyword in ipairs(monster.keywords) do
-				if childName == keyword or childName:find(keyword, 1, true) then
-					return monster.displayName, monster.color, monster.dangerous
+		if not isException(child) then
+			local childName = child.Name:lower()
+			for _, monster in ipairs(monsterDefinitions) do
+				for _, keyword in ipairs(monster.keywords) do
+					if childName == keyword or childName:find(keyword, 1, true) then
+						return monster.displayName, monster.color, monster.dangerous
+					end
 				end
 			end
 		end
@@ -236,6 +309,10 @@ local function findMovingBillboards()
 			local parent = obj.Parent
 			if parent and (parent:IsA("Model") or parent:IsA("BasePart") or parent:IsA("MeshPart")) and not processedObjects[parent] then
 				
+				if isException(parent) then
+					continue
+				end
+				
 				local rootPart = parent
 				if parent:IsA("Model") then
 					rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
@@ -243,15 +320,12 @@ local function findMovingBillboards()
 				end
 				
 				if rootPart then
-					-- Проверяем, двигается ли объект
 					local isMoving = false
 					if rootPart.Velocity and rootPart.Velocity.Magnitude > 0.5 then
 						isMoving = true
 					end
 					
-					-- Если двигается - это монстр!
 					if isMoving then
-						-- Получаем текст из BillboardGui если есть
 						local text = ""
 						for _, child in pairs(obj:GetChildren()) do
 							if child:IsA("TextLabel") then
@@ -267,7 +341,6 @@ local function findMovingBillboards()
 						
 						createESP(rootPart, Color3.fromRGB(255, 0, 0), displayName)
 						
-						-- Отмечаем как опасного
 						for _, esp in pairs(espObjects) do
 							if esp.obj == rootPart then
 								esp.isDangerous = true
@@ -289,7 +362,7 @@ end
 local function findDoors()
 	local found = 0
 	for _, obj in pairs(workspace:GetDescendants()) do
-		if not processedObjects[obj] then
+		if not processedObjects[obj] and not isException(obj) then
 			local objName = obj.Name:lower()
 			if objName == "doors" or objName == "door" or objName == "дверь" or objName == "двери" then
 				if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
@@ -483,17 +556,15 @@ local function checkNearbyMonsters()
 	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
 	if not rootPart then return end
 	
-	-- Сначала проверяем движущиеся BillboardGui (это монстры)
 	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BillboardGui") then
 			local parent = obj.Parent
-			if parent and parent:IsA("Model") then
+			if parent and parent:IsA("Model") and not isException(parent) then
 				local parentRoot = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart") or 
 								  parent:FindFirstChild("Torso") or parent:FindFirstChild("Head")
 				if parentRoot then
 					local distance = (rootPart.Position - parentRoot.Position).Magnitude
 					if distance < 20 and parentRoot.Velocity and parentRoot.Velocity.Magnitude > 0.5 then
-						-- Это движущийся монстр!
 						local text = ""
 						for _, child in pairs(obj:GetChildren()) do
 							if child:IsA("TextLabel") then
@@ -517,7 +588,6 @@ local function checkNearbyMonsters()
 		end
 	end
 	
-	-- Если монстр не найден, проверяем других опасных существ
 	local closestMonster = nil
 	local closestDistance = 15
 	local closestName = "Неизвестно"
@@ -806,6 +876,33 @@ local function toggleDoors()
 	end
 end
 
+--------- Функция переключения админки
+local function toggleAdmin()
+	adminGui = player.PlayerGui:FindFirstChild("AdminGui")
+	
+	if adminGui then
+		adminEnabled = not adminEnabled
+		adminGui.Enabled = adminEnabled
+		
+		if adminEnabled then
+			AdminSlider.Text = "ON"
+			AdminSlider.BackgroundColor3 = theme.Admin
+			AdminSlider.TextColor3 = Color3.fromRGB(0, 0, 0)
+			print("👑 Админка ВКЛЮЧЕНА")
+		else
+			AdminSlider.Text = "OFF"
+			AdminSlider.BackgroundColor3 = theme.Background2
+			AdminSlider.TextColor3 = theme.TextDim
+			print("👑 Админка ВЫКЛЮЧЕНА")
+		end
+	else
+		print("❌ Админка не найдена в PlayerGui")
+		AdminSlider.Text = "OFF"
+		AdminSlider.BackgroundColor3 = theme.Background2
+		AdminSlider.TextColor3 = theme.TextDim
+	end
+end
+
 --------- Функция переключения
 local function toggleESP(type)
 	if type == "Items" then
@@ -983,16 +1080,18 @@ local function setupObjectMonitor()
 					end
 					
 					if espEnabled.Monsters and not processedObjects[obj] then
-						if obj:IsA("Model") then
-							local displayName, color, dangerous = identifyMonster(obj)
-							if displayName then
-								local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj.PrimaryPart
-								if rootPart then
-									createESP(obj, color, displayName)
-									for _, esp in pairs(espObjects) do
-										if esp.obj == obj then
-											esp.isDangerous = dangerous
-											break
+						if not isException(obj) then
+							if obj:IsA("Model") then
+								local displayName, color, dangerous = identifyMonster(obj)
+								if displayName then
+									local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head") or obj.PrimaryPart
+									if rootPart then
+										createESP(obj, color, displayName)
+										for _, esp in pairs(espObjects) do
+											if esp.obj == obj then
+												esp.isDangerous = dangerous
+												break
+											end
 										end
 									end
 								end
@@ -1001,13 +1100,12 @@ local function setupObjectMonitor()
 						
 						if obj:IsA("BillboardGui") then
 							local parent = obj.Parent
-							if parent and (parent:IsA("Model") or parent:IsA("BasePart")) and not processedObjects[parent] then
+							if parent and (parent:IsA("Model") or parent:IsA("BasePart")) and not processedObjects[parent] and not isException(parent) then
 								local rootPart = parent
 								if parent:IsA("Model") then
 									rootPart = parent.PrimaryPart or parent:FindFirstChild("HumanoidRootPart")
 								end
 								if rootPart then
-									-- Проверяем движение
 									spawn(function()
 										wait(0.5)
 										if rootPart.Velocity and rootPart.Velocity.Magnitude > 0.5 then
@@ -1033,7 +1131,7 @@ local function setupObjectMonitor()
 						end
 					end
 					
-					if espEnabled.Doors and not processedObjects[obj] then
+					if espEnabled.Doors and not processedObjects[obj] and not isException(obj) then
 						local objName = obj.Name:lower()
 						if objName == "doors" or objName == "door" or objName == "дверь" or objName == "двери" then
 							if obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("MeshPart") then
@@ -1111,9 +1209,9 @@ UICorner9.Parent = dragButton
 UICorner9.CornerRadius = UDim.new(0, 2)
 makeDraggable(frame1Lobby, dragButton)
 
-------------- ГЛАВНОЕ МЕНЮ
-frame2menu.Size = UDim2.new(0, 200, 0, 400)
-frame2menu.Position = UDim2.new(0.5, -100, 0.5, -200)
+------------- ГЛАВНОЕ МЕНЮ (увеличено для ADMIN кнопки)
+frame2menu.Size = UDim2.new(0, 200, 0, 440)
+frame2menu.Position = UDim2.new(0.5, -100, 0.5, -220)
 frame2menu.BackgroundColor3 = theme.Background
 UIStroke2.Parent = frame2menu
 UIStroke2.Thickness = 1
@@ -1327,10 +1425,35 @@ DoorsSlider.Font = Enum.Font.Gotham
 UICorner13.Parent = DoorsSlider
 UICorner13.CornerRadius = UDim.new(0, 4)
 
+------------- ADMIN ESP (НОВАЯ КНОПКА)
+textAdmin.Parent = frame2menu
+textAdmin.Size = UDim2.new(1, -20, 0, 20)
+textAdmin.Position = UDim2.new(0, 10, 0, 315)
+textAdmin.BackgroundTransparency = 1
+textAdmin.Text = "ADMIN"
+textAdmin.TextColor3 = theme.Text
+textAdmin.TextSize = 14
+textAdmin.Font = Enum.Font.GothamBold
+textAdmin.TextXAlignment = Enum.TextXAlignment.Left
+
+AdminSlider.Parent = frame2menu
+AdminSlider.Size = UDim2.new(0, 70, 0, 24)
+AdminSlider.Position = UDim2.new(1, -85, 0, 312)
+AdminSlider.Text = "OFF"
+AdminSlider.TextSize = 14
+AdminSlider.BackgroundColor3 = theme.Background2
+AdminSlider.TextColor3 = theme.TextDim
+AdminSlider.Font = Enum.Font.Gotham
+UICorner14.Parent = AdminSlider
+UICorner14.CornerRadius = UDim.new(0, 4)
+UIStroke10.Parent = AdminSlider
+UIStroke10.Thickness = 1
+UIStroke10.Color = theme.Admin
+
 ------------- NOCLIP
 textNoclip.Parent = frame2menu
 textNoclip.Size = UDim2.new(1, -20, 0, 20)
-textNoclip.Position = UDim2.new(0, 10, 0, 315)
+textNoclip.Position = UDim2.new(0, 10, 0, 350)
 textNoclip.BackgroundTransparency = 1
 textNoclip.Text = "NOCLIP"
 textNoclip.TextColor3 = theme.Text
@@ -1340,7 +1463,7 @@ textNoclip.TextXAlignment = Enum.TextXAlignment.Left
 
 NoclipSlider.Parent = frame2menu
 NoclipSlider.Size = UDim2.new(0, 70, 0, 24)
-NoclipSlider.Position = UDim2.new(1, -85, 0, 312)
+NoclipSlider.Position = UDim2.new(1, -85, 0, 347)
 NoclipSlider.Text = "OFF"
 NoclipSlider.TextSize = 14
 NoclipSlider.BackgroundColor3 = theme.Background2
@@ -1353,7 +1476,7 @@ UICorner11.CornerRadius = UDim.new(0, 4)
 local divider3 = Instance.new("Frame")
 divider3.Parent = frame2menu
 divider3.Size = UDim2.new(1, -20, 0, 1)
-divider3.Position = UDim2.new(0, 10, 0, 350)
+divider3.Position = UDim2.new(0, 10, 0, 385)
 divider3.BackgroundColor3 = theme.Border
 divider3.BorderSizePixel = 0
 
@@ -1415,6 +1538,10 @@ DoorsSlider.MouseButton1Click:Connect(function()
 	toggleDoors()
 end)
 
+AdminSlider.MouseButton1Click:Connect(function()
+	toggleAdmin()
+end)
+
 NoclipSlider.MouseButton1Click:Connect(function()
 	toggleNoclip()
 end)
@@ -1435,7 +1562,8 @@ spawn(function()
 end)
 
 print("✅ Меню загружено!")
-print("👹 MONSTER ESP - ищет монстров по имени и движущиеся картинки")
+print("👹 MONSTER ESP - ищет монстров (игнорирует поезда, вентиляцию и т.д.)")
 print("🚪 DOORS ESP - отдельная кнопка для дверей")
+print("👑 ADMIN - включает/выключает админку (золотой цвет)")
 print("💀 DETECTOR - показывает кто убил")
 print("📝 LOGGER - все новые объекты пишутся в консоль")
